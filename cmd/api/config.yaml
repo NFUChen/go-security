@@ -1,0 +1,14 @@
+server:
+  port: 90
+
+security:
+  secret: "secret"
+
+postgres_data_source:
+    host: "localhost"
+    port: 5432
+    user: "postgres"
+    password: "password"
+    db_name: "postgres"
+
+

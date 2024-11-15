@@ -1,0 +1,707 @@
+diff --git a/cmd/api/config.yaml b/cmd/api/config.yaml
+new file mode 100644
+index 0000000..5fe035a
+--- /dev/null
++++ b/cmd/api/config.yaml
+@@ -0,0 +1,14 @@
++server:
++  port: 90
++
++security:
++  secret: "secret"
++
++postgres_data_source:
++    host: "localhost"
++    port: 5432
++    user: "postgres"
++    password: "password"
++    db_name: "postgres"
++
++
+diff --git a/cmd/api/main.go b/cmd/api/main.go
+index ba1fcba..27620c6 100644
+--- a/cmd/api/main.go
++++ b/cmd/api/main.go
+@@ -1,46 +1,11 @@
+ package main
+ 
+ import (
+-	"context"
+-	"fmt"
+-	"log"
+-	"net/http"
+-	"os/signal"
+-	"syscall"
+-	"time"
+-
+-	"go-security/internal/server"
++	"go-security/internal/application"
+ )
+ 
+-func gracefulShutdown(apiServer *http.Server) {
+-	// Create context that listens for the interrupt signal from the OS.
+-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+-	defer stop()
+-
+-	// Listen for the interrupt signal.
+-	<-ctx.Done()
+-
+-	log.Println("shutting down gracefully, press Ctrl+C again to force")
+-
+-	// The context is used to inform the server it has 5 seconds to finish
+-	// the request it is currently handling
+-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+-	defer cancel()
+-	if err := apiServer.Shutdown(ctx); err != nil {
+-		log.Printf("Server forced to shutdown with error: %v", err)
+-	}
+-
+-	log.Println("Server exiting")
+-}
+-
+ func main() {
+-
+-	server := server.NewServer()
+-
+-	go gracefulShutdown(server)
+-
+-	err := server.ListenAndServe()
+-	if err != nil && err != http.ErrServerClosed {
+-		panic(fmt.Sprintf("http server error: %s", err))
+-	}
++	config := application.MustNewConfigFromFile("./config.yaml")
++	app := application.NewApplication(config)
++	app.Run()
+ }
+diff --git a/git_diff.log b/git_diff.log
+new file mode 100644
+index 0000000..425ad1e
+--- /dev/null
++++ b/git_diff.log
+@@ -0,0 +1,355 @@
++diff --git a/cmd/api/config.yaml b/cmd/api/config.yaml
++new file mode 100644
++index 0000000..5fe035a
++--- /dev/null
+++++ b/cmd/api/config.yaml
++@@ -0,0 +1,14 @@
+++server:
+++  port: 90
+++
+++security:
+++  secret: "secret"
+++
+++postgres_data_source:
+++    host: "localhost"
+++    port: 5432
+++    user: "postgres"
+++    password: "password"
+++    db_name: "postgres"
+++
+++
++diff --git a/cmd/api/main.go b/cmd/api/main.go
++index ba1fcba..27620c6 100644
++--- a/cmd/api/main.go
+++++ b/cmd/api/main.go
++@@ -1,46 +1,11 @@
++ package main
++ 
++ import (
++-	"context"
++-	"fmt"
++-	"log"
++-	"net/http"
++-	"os/signal"
++-	"syscall"
++-	"time"
++-
++-	"go-security/internal/server"
+++	"go-security/internal/application"
++ )
++ 
++-func gracefulShutdown(apiServer *http.Server) {
++-	// Create context that listens for the interrupt signal from the OS.
++-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
++-	defer stop()
++-
++-	// Listen for the interrupt signal.
++-	<-ctx.Done()
++-
++-	log.Println("shutting down gracefully, press Ctrl+C again to force")
++-
++-	// The context is used to inform the server it has 5 seconds to finish
++-	// the request it is currently handling
++-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
++-	defer cancel()
++-	if err := apiServer.Shutdown(ctx); err != nil {
++-		log.Printf("Server forced to shutdown with error: %v", err)
++-	}
++-
++-	log.Println("Server exiting")
++-}
++-
++ func main() {
++-
++-	server := server.NewServer()
++-
++-	go gracefulShutdown(server)
++-
++-	err := server.ListenAndServe()
++-	if err != nil && err != http.ErrServerClosed {
++-		panic(fmt.Sprintf("http server error: %s", err))
++-	}
+++	config := application.MustNewConfigFromFile("./config.yaml")
+++	app := application.NewApplication(config)
+++	app.Run()
++ }
++diff --git a/go.mod b/go.mod
++index 9e28be0..70ae34f 100644
++--- a/go.mod
+++++ b/go.mod
++@@ -19,4 +19,5 @@ require (
++ 	golang.org/x/sys v0.27.0 // indirect
++ 	golang.org/x/text v0.20.0 // indirect
++ 	golang.org/x/time v0.8.0 // indirect
+++	gopkg.in/yaml.v3 v3.0.1 // indirect
++ )
++diff --git a/go.sum b/go.sum
++index d7942e8..ff31215 100644
++--- a/go.sum
+++++ b/go.sum
++@@ -33,5 +33,6 @@ golang.org/x/text v0.20.0 h1:gK/Kv2otX8gz+wn7Rmb3vT96ZwuoxnQlY+HlJVj7Qug=
++ golang.org/x/text v0.20.0/go.mod h1:D4IsuqiFMhST5bX19pQ9ikHC2GsaKyk/oF+pn3ducp4=
++ golang.org/x/time v0.8.0 h1:9i3RxcPv3PZnitoVGMPDKZSq1xW1gK1Xy3ArNOGZfEg=
++ golang.org/x/time v0.8.0/go.mod h1:3BpzKBy/shNhVucY/MWOyx10tF3SFh9QdLuxbVysPQM=
+++gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
++ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
++ gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
++diff --git a/internal/application/app_config.go b/internal/application/app_config.go
++new file mode 100644
++index 0000000..2ed86c2
++--- /dev/null
+++++ b/internal/application/app_config.go
++@@ -0,0 +1,49 @@
+++package application
+++
+++import (
+++	"bufio"
+++	"gopkg.in/yaml.v3"
+++	"log"
+++	"os"
+++)
+++
+++type ServerConfig struct {
+++	Port int `yaml:"port"`
+++}
+++
+++type SecurityConfig struct {
+++	Secret string `yaml:"secret"`
+++}
+++
+++type PostgresDataSourceConfig struct {
+++	Host     string `yaml:"host"`
+++	Port     int    `yaml:"port"`
+++	User     string `yaml:"user"`
+++	Password string `yaml:"password"`
+++	DBName   string `yaml:"db_name"`
+++}
+++
+++type Config struct {
+++	Server             ServerConfig             `yaml:"server"`
+++	Security           SecurityConfig           `yaml:"security"`
+++	PostgresDataSource PostgresDataSourceConfig `yaml:"postgres_data_source"`
+++}
+++
+++func MustNewConfigFromFile(configPath string) *Config {
+++	file, err := os.Open(configPath)
+++	if err != nil {
+++		panic(err)
+++	}
+++	scanner := bufio.NewScanner(file)
+++	content := ""
+++	for scanner.Scan() {
+++		content += scanner.Text() + "\n"
+++	}
+++
+++	var config Config
+++	if err = yaml.Unmarshal([]byte(content), &config); err != nil {
+++		panic(err)
+++	}
+++	log.Println(config)
+++	return &config
+++}
++diff --git a/internal/application/application.go b/internal/application/application.go
++new file mode 100644
++index 0000000..ea2e025
++--- /dev/null
+++++ b/internal/application/application.go
++@@ -0,0 +1,42 @@
+++package application
+++
+++import (
+++	"fmt"
+++	"github.com/labstack/echo/v4"
+++	"go-security/internal/web"
+++)
+++
+++type Application struct {
+++	Engine      *echo.Echo
+++	AppConfig   *Config
+++	Controllers []web.Controller
+++}
+++
+++func NewApplication(config *Config) *Application {
+++	engine := echo.New()
+++	mainController := web.NewMainController(engine)
+++	controllers := []web.Controller{
+++		mainController,
+++	}
+++
+++	return &Application{
+++		AppConfig:   config,
+++		Engine:      engine,
+++		Controllers: controllers,
+++	}
+++}
+++
+++func (app *Application) RegisterControllers() {
+++	for _, controller := range app.Controllers {
+++		controller.RegisterRoutes()
+++	}
+++}
+++
+++func (app *Application) Run() {
+++	app.RegisterControllers()
+++	err := app.Engine.Start(fmt.Sprintf(":%d", app.AppConfig.Server.Port))
+++	if err != nil {
+++		panic(err)
+++	}
+++
+++}
++diff --git a/internal/server/routes.go b/internal/server/routes.go
++deleted file mode 100644
++index b4affd8..0000000
++--- a/internal/server/routes.go
+++++ /dev/null
++@@ -1,26 +0,0 @@
++-package server
++-
++-import (
++-	"net/http"
++-
++-	"github.com/labstack/echo/v4"
++-	"github.com/labstack/echo/v4/middleware"
++-)
++-
++-func (s *Server) RegisterRoutes() http.Handler {
++-	e := echo.New()
++-	e.Use(middleware.Logger())
++-	e.Use(middleware.Recover())
++-
++-	e.GET("/", s.HelloWorldHandler)
++-
++-	return e
++-}
++-
++-func (s *Server) HelloWorldHandler(c echo.Context) error {
++-	resp := map[string]string{
++-		"message": "Hello World",
++-	}
++-
++-	return c.JSON(http.StatusOK, resp)
++-}
++diff --git a/internal/server/routes_test.go b/internal/server/routes_test.go
++deleted file mode 100644
++index 913a5d9..0000000
++--- a/internal/server/routes_test.go
+++++ /dev/null
++@@ -1,39 +0,0 @@
++-package server
++-
++-import (
++-	"encoding/json"
++-	"github.com/labstack/echo/v4"
++-	"net/http"
++-	"net/http/httptest"
++-	"reflect"
++-	"testing"
++-)
++-
++-func TestHandler(t *testing.T) {
++-	e := echo.New()
++-	req := httptest.NewRequest(http.MethodGet, "/", nil)
++-	resp := httptest.NewRecorder()
++-	c := e.NewContext(req, resp)
++-	s := &Server{}
++-	// Assertions
++-	if err := s.HelloWorldHandler(c); err != nil {
++-		t.Errorf("handler() error = %v", err)
++-		return
++-	}
++-	if resp.Code != http.StatusOK {
++-		t.Errorf("handler() wrong status code = %v", resp.Code)
++-		return
++-	}
++-	expected := map[string]string{"message": "Hello World"}
++-	var actual map[string]string
++-	// Decode the response body into the actual map
++-	if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
++-		t.Errorf("handler() error decoding response body: %v", err)
++-		return
++-	}
++-	// Compare the decoded response with the expected value
++-	if !reflect.DeepEqual(expected, actual) {
++-		t.Errorf("handler() wrong response body. expected = %v, actual = %v", expected, actual)
++-		return
++-	}
++-}
++diff --git a/internal/server/server.go b/internal/server/server.go
++deleted file mode 100644
++index 7a94652..0000000
++--- a/internal/server/server.go
+++++ /dev/null
++@@ -1,33 +0,0 @@
++-package server
++-
++-import (
++-	"fmt"
++-	"net/http"
++-	"os"
++-	"strconv"
++-	"time"
++-
++-	_ "github.com/joho/godotenv/autoload"
++-)
++-
++-type Server struct {
++-	port int
++-}
++-
++-func NewServer() *http.Server {
++-	port, _ := strconv.Atoi(os.Getenv("PORT"))
++-	NewServer := &Server{
++-		port: port,
++-	}
++-
++-	// Declare Server config
++-	server := &http.Server{
++-		Addr:         fmt.Sprintf(":%d", NewServer.port),
++-		Handler:      NewServer.RegisterRoutes(),
++-		IdleTimeout:  time.Minute,
++-		ReadTimeout:  10 * time.Second,
++-		WriteTimeout: 30 * time.Second,
++-	}
++-
++-	return server
++-}
++diff --git a/internal/web/controller.go b/internal/web/controller.go
++new file mode 100644
++index 0000000..4db7dbf
++--- /dev/null
+++++ b/internal/web/controller.go
++@@ -0,0 +1,9 @@
+++package web
+++
+++import (
+++	_ "github.com/joho/godotenv/autoload"
+++)
+++
+++type Controller interface {
+++	RegisterRoutes()
+++}
++diff --git a/internal/web/main_controller.go b/internal/web/main_controller.go
++new file mode 100644
++index 0000000..4c0a186
++--- /dev/null
+++++ b/internal/web/main_controller.go
++@@ -0,0 +1,19 @@
+++package web
+++
+++import "github.com/labstack/echo/v4"
+++
+++type MainController struct {
+++	Engine *echo.Echo
+++}
+++
+++func NewMainController(engine *echo.Echo) *MainController {
+++	return &MainController{
+++		Engine: engine,
+++	}
+++}
+++
+++func (controller MainController) RegisterRoutes() {
+++	controller.Engine.GET("/", func(context echo.Context) error {
+++		return context.String(200, "Hello, World!")
+++	})
+++}
+diff --git a/go.mod b/go.mod
+index 9e28be0..70ae34f 100644
+--- a/go.mod
++++ b/go.mod
+@@ -19,4 +19,5 @@ require (
+ 	golang.org/x/sys v0.27.0 // indirect
+ 	golang.org/x/text v0.20.0 // indirect
+ 	golang.org/x/time v0.8.0 // indirect
++	gopkg.in/yaml.v3 v3.0.1 // indirect
+ )
+diff --git a/go.sum b/go.sum
+index d7942e8..ff31215 100644
+--- a/go.sum
++++ b/go.sum
+@@ -33,5 +33,6 @@ golang.org/x/text v0.20.0 h1:gK/Kv2otX8gz+wn7Rmb3vT96ZwuoxnQlY+HlJVj7Qug=
+ golang.org/x/text v0.20.0/go.mod h1:D4IsuqiFMhST5bX19pQ9ikHC2GsaKyk/oF+pn3ducp4=
+ golang.org/x/time v0.8.0 h1:9i3RxcPv3PZnitoVGMPDKZSq1xW1gK1Xy3ArNOGZfEg=
+ golang.org/x/time v0.8.0/go.mod h1:3BpzKBy/shNhVucY/MWOyx10tF3SFh9QdLuxbVysPQM=
++gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+ gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+diff --git a/internal/application/app_config.go b/internal/application/app_config.go
+new file mode 100644
+index 0000000..268cded
+--- /dev/null
++++ b/internal/application/app_config.go
+@@ -0,0 +1,40 @@
++package application
++
++import (
++	"gopkg.in/yaml.v3"
++	"os"
++)
++
++type ServerConfig struct {
++	Port int `yaml:"port"`
++}
++
++type SecurityConfig struct {
++	Secret string `yaml:"secret"`
++}
++
++type PostgresDataSourceConfig struct {
++	Host     string `yaml:"host"`
++	Port     int    `yaml:"port"`
++	User     string `yaml:"user"`
++	Password string `yaml:"password"`
++	DBName   string `yaml:"db_name"`
++}
++
++type Config struct {
++	Server             ServerConfig             `yaml:"server"`
++	Security           SecurityConfig           `yaml:"security"`
++	PostgresDataSource PostgresDataSourceConfig `yaml:"postgres_data_source"`
++}
++
++func MustNewConfigFromFile(configPath string) *Config {
++	file, err := os.ReadFile(configPath)
++	if err != nil {
++		panic(err)
++	}
++	var config Config
++	if err := yaml.Unmarshal(file, &config); err != nil {
++		panic(err)
++	}
++	return &config
++}
+diff --git a/internal/application/application.go b/internal/application/application.go
+new file mode 100644
+index 0000000..ea2e025
+--- /dev/null
++++ b/internal/application/application.go
+@@ -0,0 +1,42 @@
++package application
++
++import (
++	"fmt"
++	"github.com/labstack/echo/v4"
++	"go-security/internal/web"
++)
++
++type Application struct {
++	Engine      *echo.Echo
++	AppConfig   *Config
++	Controllers []web.Controller
++}
++
++func NewApplication(config *Config) *Application {
++	engine := echo.New()
++	mainController := web.NewMainController(engine)
++	controllers := []web.Controller{
++		mainController,
++	}
++
++	return &Application{
++		AppConfig:   config,
++		Engine:      engine,
++		Controllers: controllers,
++	}
++}
++
++func (app *Application) RegisterControllers() {
++	for _, controller := range app.Controllers {
++		controller.RegisterRoutes()
++	}
++}
++
++func (app *Application) Run() {
++	app.RegisterControllers()
++	err := app.Engine.Start(fmt.Sprintf(":%d", app.AppConfig.Server.Port))
++	if err != nil {
++		panic(err)
++	}
++
++}
+diff --git a/internal/server/routes.go b/internal/server/routes.go
+deleted file mode 100644
+index b4affd8..0000000
+--- a/internal/server/routes.go
++++ /dev/null
+@@ -1,26 +0,0 @@
+-package server
+-
+-import (
+-	"net/http"
+-
+-	"github.com/labstack/echo/v4"
+-	"github.com/labstack/echo/v4/middleware"
+-)
+-
+-func (s *Server) RegisterRoutes() http.Handler {
+-	e := echo.New()
+-	e.Use(middleware.Logger())
+-	e.Use(middleware.Recover())
+-
+-	e.GET("/", s.HelloWorldHandler)
+-
+-	return e
+-}
+-
+-func (s *Server) HelloWorldHandler(c echo.Context) error {
+-	resp := map[string]string{
+-		"message": "Hello World",
+-	}
+-
+-	return c.JSON(http.StatusOK, resp)
+-}
+diff --git a/internal/server/routes_test.go b/internal/server/routes_test.go
+deleted file mode 100644
+index 913a5d9..0000000
+--- a/internal/server/routes_test.go
++++ /dev/null
+@@ -1,39 +0,0 @@
+-package server
+-
+-import (
+-	"encoding/json"
+-	"github.com/labstack/echo/v4"
+-	"net/http"
+-	"net/http/httptest"
+-	"reflect"
+-	"testing"
+-)
+-
+-func TestHandler(t *testing.T) {
+-	e := echo.New()
+-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+-	resp := httptest.NewRecorder()
+-	c := e.NewContext(req, resp)
+-	s := &Server{}
+-	// Assertions
+-	if err := s.HelloWorldHandler(c); err != nil {
+-		t.Errorf("handler() error = %v", err)
+-		return
+-	}
+-	if resp.Code != http.StatusOK {
+-		t.Errorf("handler() wrong status code = %v", resp.Code)
+-		return
+-	}
+-	expected := map[string]string{"message": "Hello World"}
+-	var actual map[string]string
+-	// Decode the response body into the actual map
+-	if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
+-		t.Errorf("handler() error decoding response body: %v", err)
+-		return
+-	}
+-	// Compare the decoded response with the expected value
+-	if !reflect.DeepEqual(expected, actual) {
+-		t.Errorf("handler() wrong response body. expected = %v, actual = %v", expected, actual)
+-		return
+-	}
+-}
+diff --git a/internal/server/server.go b/internal/server/server.go
+deleted file mode 100644
+index 7a94652..0000000
+--- a/internal/server/server.go
++++ /dev/null
+@@ -1,33 +0,0 @@
+-package server
+-
+-import (
+-	"fmt"
+-	"net/http"
+-	"os"
+-	"strconv"
+-	"time"
+-
+-	_ "github.com/joho/godotenv/autoload"
+-)
+-
+-type Server struct {
+-	port int
+-}
+-
+-func NewServer() *http.Server {
+-	port, _ := strconv.Atoi(os.Getenv("PORT"))
+-	NewServer := &Server{
+-		port: port,
+-	}
+-
+-	// Declare Server config
+-	server := &http.Server{
+-		Addr:         fmt.Sprintf(":%d", NewServer.port),
+-		Handler:      NewServer.RegisterRoutes(),
+-		IdleTimeout:  time.Minute,
+-		ReadTimeout:  10 * time.Second,
+-		WriteTimeout: 30 * time.Second,
+-	}
+-
+-	return server
+-}
+diff --git a/internal/web/controller.go b/internal/web/controller.go
+new file mode 100644
+index 0000000..4db7dbf
+--- /dev/null
++++ b/internal/web/controller.go
+@@ -0,0 +1,9 @@
++package web
++
++import (
++	_ "github.com/joho/godotenv/autoload"
++)
++
++type Controller interface {
++	RegisterRoutes()
++}
+diff --git a/internal/web/main_controller.go b/internal/web/main_controller.go
+new file mode 100644
+index 0000000..4c0a186
+--- /dev/null
++++ b/internal/web/main_controller.go
+@@ -0,0 +1,19 @@
++package web
++
++import "github.com/labstack/echo/v4"
++
++type MainController struct {
++	Engine *echo.Echo
++}
++
++func NewMainController(engine *echo.Echo) *MainController {
++	return &MainController{
++		Engine: engine,
++	}
++}
++
++func (controller MainController) RegisterRoutes() {
++	controller.Engine.GET("/", func(context echo.Context) error {
++		return context.String(200, "Hello, World!")
++	})
++}
