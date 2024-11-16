@@ -3,12 +3,14 @@ server:
 
 security:
   secret: "secret"
+  excluded_routes_prefixes:
+    - "/api/public"
 
 postgres_data_source:
     host: "localhost"
-    port: 5432
-    user: "postgres"
-    password: "password"
-    db_name: "postgres"
+    port: 5435
+    user: "admin"
+    password: "admin"
+    db_name: "db"
 
 

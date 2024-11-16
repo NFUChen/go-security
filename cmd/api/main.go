@@ -6,6 +6,6 @@ import (
 
 func main() {
 	config := application.MustNewConfigFromFile("./config.yaml")
-	app := application.NewApplication(config)
+	app := application.MustNewApplication(config)
 	app.Run()
 }

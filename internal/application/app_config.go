@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"gopkg.in/yaml.v3"
 	"os"
 )
@@ -10,15 +11,23 @@ type ServerConfig struct {
 }
 
 type SecurityConfig struct {
-	Secret string `yaml:"secret"`
+	Secret                string   `yaml:"secret"`
+	ExcludedRoutePrefixes []string `yaml:"excluded_routes_prefixes"`
 }
 
 type PostgresDataSourceConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	DBName   string `yaml:"db_name"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	User         string `yaml:"user"`
+	Password     string `yaml:"password"`
+	DatabaseName string `yaml:"db_name"`
+}
+
+func (config *PostgresDataSourceConfig) AsDSN() string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		config.Host, config.Port, config.User, config.Password, config.DatabaseName,
+	)
 }
 
 type Config struct {

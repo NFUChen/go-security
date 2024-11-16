@@ -1,4 +1,4 @@
-package web
+package controller
 
 import (
 	_ "github.com/joho/godotenv/autoload"
