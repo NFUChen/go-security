@@ -15,11 +15,23 @@ const (
 	CookieName = "jwt"
 )
 
+type SecurityConfig struct {
+	Secret                string   `yaml:"secret" json:"-"`
+	ExcludedRoutePrefixes []string `yaml:"excluded_routes_prefixes"`
+}
+
 type UserClaims struct {
 	UserName           string  `json:"user_name"`
 	RoleName           string  `json:"role"`
 	RoleIndex          uint    `json:"role_index"`
 	ExpirationDuration float64 `json:"exp"`
+}
+
+func (claims *UserClaims) Validate() error {
+	if claims.ExpirationDuration < float64(time.Now().Unix()) {
+		return internal.TokenExpired
+	}
+	return nil
 }
 
 type AuthService struct {
@@ -53,22 +65,24 @@ func (service *AuthService) Login(ctx context.Context, email string, password st
 	if err != nil {
 		return "", internal.UserPasswordNotMatched
 	}
-	return service.encodeJsonWebToken(user.Name, role, time.Hour)
+	return service.IssueLoginToken(user.Name, role, time.Hour)
 }
 
-func (service *AuthService) encodeJsonWebToken(userName string, role *UserRole, expiration time.Duration) (string, error) {
+func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, _ := token.SignedString([]byte(service.Secret))
+	log.Info().Msgf("Issue Token: %v", tokenString)
+	return tokenString
+}
+func (service *AuthService) IssueLoginToken(userName string, role *UserRole, expiration time.Duration) (string, error) {
 
-	userMapClaims := jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"user_name":  userName,
 		"role_name":  role.Name,
 		"role_index": role.RoleIndex,
 		"exp":        time.Now().Add(expiration).Unix(),
 	}
-	// Create a new token with the claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, userMapClaims)
-
-	// Sign the token with the secret key
-	return token.SignedString([]byte(service.Secret))
+	return service.IssueJsonWebToken(&claims), nil
 }
 
 func (service *AuthService) ExtractUserClaims(claims *jwt.MapClaims) (*UserClaims, error) {
@@ -100,11 +114,9 @@ func (service *AuthService) ExtractUserClaims(claims *jwt.MapClaims) (*UserClaim
 	return &userClaims, nil
 }
 
-func (service *AuthService) DecodeJsonWebToken(tokenString string) (*UserClaims, error) {
-	// Parse the token with a function to validate the signature
+func (service *AuthService) DecodeJsonWebToken(rawToken string) (*jwt.Token, error) {
 	secretKey := []byte(service.Secret)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Ensure the signing method is as expected
+	token, err := jwt.Parse(rawToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -114,8 +126,16 @@ func (service *AuthService) DecodeJsonWebToken(tokenString string) (*UserClaims,
 	if err != nil {
 		return nil, err
 	}
+	return token, nil
+}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+func (service *AuthService) ParseUserClaims(tokenString string) (*UserClaims, error) {
+	_jwt, err := service.DecodeJsonWebToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := _jwt.Claims.(jwt.MapClaims); ok && _jwt.Valid {
 		userClaims, err := service.ExtractUserClaims(&claims)
 		if err != nil {
 			return nil, err
@@ -144,10 +164,11 @@ func (service *AuthService) NewUser(name, email, password, role string) (*User, 
 		return nil, err
 	}
 	user := &User{
-		Name:     name,
-		Email:    email,
-		Password: password,
-		RoleID:   userRole.ID,
+		Name:       name,
+		Email:      email,
+		Password:   password,
+		RoleID:     userRole.ID,
+		IsVerified: false,
 	}
 
 	err = user.Validate()

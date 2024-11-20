@@ -50,3 +50,11 @@ func (service *UserService) SaveUser(ctx context.Context, user *User) (*User, er
 	err := service.UserRepository.Save(ctx, user)
 	return user, err
 }
+
+func (service *UserService) ResetUserPassword(ctx context.Context, user *User, password string) error {
+	return service.UserRepository.UpdateUserPassword(ctx, user, password)
+}
+
+func (service *UserService) ActivateUser(ctx context.Context, user *User) error {
+	return service.UserRepository.ActivateUser(ctx, user)
+}

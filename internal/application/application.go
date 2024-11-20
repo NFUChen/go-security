@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -23,6 +24,10 @@ type Application struct {
 	Controllers []controller.Controller
 }
 
+type Runnable interface {
+	Run()
+}
+
 func (app *Application) migrateDatabase() {
 	err := app.SqlEngine.AutoMigrate(repository.GetAllModels()...)
 	if err != nil {
@@ -38,23 +43,30 @@ func setupLogger() {
 }
 
 func MustNewApplication(config *Config) *Application {
+	log.Printf("Starting application...")
+	fmt.Printf("%s\n", config.AsJson())
 	setupLogger()
+	ctx := context.Background()
 	engine := echo.New()
 
 	sqlEngine, err := gorm.Open(postgres.Open(config.PostgresDataSource.AsDSN()), &gorm.Config{})
-	log.Printf("Connected to database: %s", config.PostgresDataSource.DatabaseName)
+	log.Info().Msgf("Connected to database: %s", config.PostgresDataSource.DatabaseName)
 
+	otpService := service.NewOtpService()
 	userRepo := repository.NewUserRepository(sqlEngine)
 	userService := service.NewUserService(userRepo)
 	authService := service.NewAuthService(userService, config.Security.Secret)
 	authMiddleware := web.NewAuthMiddleware(authService, config.Security.ExcludedRoutePrefixes)
-	log.Printf("Security excluded routes: %v", config.Security.ExcludedRoutePrefixes)
+	log.Info().Msgf("Security excluded routes: %v", config.Security.ExcludedRoutePrefixes)
+	smtpService := service.NewSmtpService(ctx, &config.Smtp)
+	resetPasswordService := service.NewUserResetPasswordService(smtpService, userService, authService, otpService)
+	verificationService := service.NewUserVerificationService(smtpService, userService, authService, otpService)
 
 	baseRouterGroup := engine.Group("/api")
 
 	mainController := controller.NewMainController(engine)
 	authController := controller.NewAuthController(baseRouterGroup, authService, userService)
-	userController := controller.NewUserController(baseRouterGroup, userService)
+	userController := controller.NewUserController(baseRouterGroup, userService, resetPasswordService, verificationService)
 	controllers := []controller.Controller{
 		mainController,
 		authController,
@@ -65,18 +77,24 @@ func MustNewApplication(config *Config) *Application {
 		panic(err)
 	}
 
-	engine.Use(middleware.Recover())
-	engine.Use(middleware.Logger())
-	engine.Use(web.ErrorMiddlewareFunc)
-	engine.Use(authMiddleware.AuthMiddlewareFunc)
-	engine.Use(web.CORSMiddlewareFunc)
+	middlewares := []echo.MiddlewareFunc{
+		middleware.Recover(),
+		middleware.Logger(),
+		web.ErrorMiddlewareFunc,
+		authMiddleware.AuthMiddlewareFunc,
+		web.CORSMiddlewareFunc,
+	}
 
-	return &Application{
+	engine.Use(middlewares...)
+
+	app := &Application{
 		AppConfig:   config,
 		Engine:      engine,
 		Controllers: controllers,
 		SqlEngine:   sqlEngine,
 	}
+
+	return app
 }
 
 func (app *Application) RegisterControllers() {

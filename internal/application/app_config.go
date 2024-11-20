@@ -1,39 +1,27 @@
 package application
 
 import (
-	"fmt"
+	"encoding/json"
+	"go-security/internal/repository"
+	"go-security/internal/service"
+	"go-security/internal/web/controller"
 	"gopkg.in/yaml.v3"
 	"os"
 )
 
-type ServerConfig struct {
-	Port int `yaml:"port"`
-}
-
-type SecurityConfig struct {
-	Secret                string   `yaml:"secret"`
-	ExcludedRoutePrefixes []string `yaml:"excluded_routes_prefixes"`
-}
-
-type PostgresDataSourceConfig struct {
-	Host         string `yaml:"host"`
-	Port         int    `yaml:"port"`
-	User         string `yaml:"user"`
-	Password     string `yaml:"password"`
-	DatabaseName string `yaml:"db_name"`
-}
-
-func (config *PostgresDataSourceConfig) AsDSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		config.Host, config.Port, config.User, config.Password, config.DatabaseName,
-	)
-}
-
 type Config struct {
-	Server             ServerConfig             `yaml:"server"`
-	Security           SecurityConfig           `yaml:"security"`
-	PostgresDataSource PostgresDataSourceConfig `yaml:"postgres_data_source"`
+	Server             controller.ServerConfig             `yaml:"server"`
+	Security           service.SecurityConfig              `yaml:"security"`
+	PostgresDataSource repository.PostgresDataSourceConfig `yaml:"postgres_data_source"`
+	Smtp               service.SmtpConfig                  `yaml:"smtp"`
+}
+
+func (config *Config) AsJson() string {
+	_json, err := json.MarshalIndent(config, "", "   ")
+	if err != nil {
+		return ""
+	}
+	return string(_json)
 }
 
 func MustNewConfigFromFile(configPath string) *Config {

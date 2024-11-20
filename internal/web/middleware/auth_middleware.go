@@ -41,7 +41,7 @@ func (middleware *AuthMiddleware) AuthMiddlewareFunc(next echo.HandlerFunc) echo
 		if err != nil {
 			return ctx.JSON(http.StatusUnauthorized, LoginRequired)
 		}
-		userClaims, err := middleware.AuthService.DecodeJsonWebToken(cookie.Value)
+		userClaims, err := middleware.AuthService.ParseUserClaims(cookie.Value)
 		if err != nil {
 			return err
 		}

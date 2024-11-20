@@ -10,14 +10,18 @@ import (
 )
 
 type UserController struct {
-	Router      *echo.Group
-	UserService *service.UserService
+	Router               *echo.Group
+	UserService          *service.UserService
+	ResetPasswordService *service.UserResetPasswordService
+	VerificationService  *service.UserVerificationService
 }
 
-func NewUserController(routerGroup *echo.Group, userService *service.UserService) *UserController {
+func NewUserController(routerGroup *echo.Group, userService *service.UserService, resetPasswordService *service.UserResetPasswordService, verificationService *service.UserVerificationService) *UserController {
 	return &UserController{
-		Router:      routerGroup,
-		UserService: userService,
+		Router:               routerGroup,
+		UserService:          userService,
+		ResetPasswordService: resetPasswordService,
+		VerificationService:  verificationService,
 	}
 }
 
@@ -27,6 +31,7 @@ func (controller *UserController) RegisterRoutes() {
 		panic(err)
 	}
 	controller.Router.GET("/private/user", web.RoleRequired(adminRole.RoleIndex, controller.GetUser))
+
 }
 
 func (controller *UserController) GetUser(ctx echo.Context) error {

@@ -15,10 +15,16 @@ type IUserRepository interface {
 	AddRole(ctx context.Context, role *UserRole) error
 	FindAllRoles(ctx context.Context) ([]*UserRole, error)
 	FindRoleByName(ctx context.Context, name string) (*UserRole, error)
+	UpdateUserPassword(ctx context.Context, user *User, password string) error
+	ActivateUser(ctx context.Context, user *User) error
 }
 
 type UserRepository struct {
 	Engine *gorm.DB
+}
+
+func (repo *UserRepository) ActivateUser(ctx context.Context, user *User) error {
+	return repo.Engine.WithContext(ctx).Model(user).Update("is_verified", true).Error
 }
 
 func (repo *UserRepository) AddRole(ctx context.Context, role *UserRole) error {
@@ -73,4 +79,8 @@ func (repo *UserRepository) Save(ctx context.Context, user *User) error {
 
 func (repo *UserRepository) DeleteByID(ctx context.Context, id uint) error {
 	return repo.Engine.WithContext(ctx).Delete(&User{}, id).Error
+}
+
+func (repo *UserRepository) UpdateUserPassword(ctx context.Context, user *User, password string) error {
+	return repo.Engine.WithContext(ctx).Model(user).Update("password", password).Error
 }

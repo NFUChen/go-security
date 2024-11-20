@@ -13,4 +13,10 @@ postgres_data_source:
     password: "admin"
     db_name: "db"
 
+smtp:
+    company_name: "go-security"
+    host: "smtp.gmail.com"
+    port: 587
+    user: user
+    password: pwd
 
