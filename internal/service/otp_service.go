@@ -15,6 +15,14 @@ const (
 	PurposeResetPassword          Purpose = "reset_password"
 )
 
+func GenerateOtpCode() string {
+	code := ""
+	for i := 0; i < 6; i++ {
+		code += fmt.Sprintf("%d", rand.Intn(10)) // Generate a digit (0-9)
+	}
+	return code
+}
+
 type OTP struct {
 	UserId         uint
 	Purpose        Purpose
@@ -23,14 +31,16 @@ type OTP struct {
 }
 
 type OtpService struct {
-	otpCache map[uint]map[Purpose]*OTP
-	otpLock  *sync.Mutex
+	OtpCache         map[uint]map[Purpose]*OTP
+	OtpLock          *sync.Mutex
+	OtpGeneratorFunc func() string
 }
 
-func NewOtpService() *OtpService {
+func NewOtpService(generatorFunc func() string) *OtpService {
 	return &OtpService{
-		otpCache: make(map[uint]map[Purpose]*OTP),
-		otpLock:  new(sync.Mutex),
+		OtpCache:         make(map[uint]map[Purpose]*OTP),
+		OtpLock:          new(sync.Mutex),
+		OtpGeneratorFunc: generatorFunc,
 	}
 }
 
@@ -43,7 +53,7 @@ func (service *OtpService) generateOtp() string {
 }
 
 func (service *OtpService) GenerateOtp(userId uint, purpose Purpose) *OTP {
-	code := service.generateOtp()
+	code := service.OtpGeneratorFunc()
 	otp := &OTP{
 		UserId:         userId,
 		Purpose:        purpose,
@@ -51,21 +61,21 @@ func (service *OtpService) GenerateOtp(userId uint, purpose Purpose) *OTP {
 		ExpirationTime: time.Now().Add(time.Minute * 5).Unix(),
 	}
 
-	service.otpLock.Lock()
-	defer service.otpLock.Unlock()
+	service.OtpLock.Lock()
+	defer service.OtpLock.Unlock()
 
-	if service.otpCache[userId] == nil {
-		service.otpCache[userId] = make(map[Purpose]*OTP)
+	if service.OtpCache[userId] == nil {
+		service.OtpCache[userId] = make(map[Purpose]*OTP)
 	}
-	service.otpCache[userId][purpose] = otp
+	service.OtpCache[userId][purpose] = otp
 	return otp
 }
 
 func (service *OtpService) mustGetOtp(userId uint, purpose Purpose) (*OTP, error) {
-	service.otpLock.Lock()
-	defer service.otpLock.Unlock()
+	service.OtpLock.Lock()
+	defer service.OtpLock.Unlock()
 
-	otpMap, ok := service.otpCache[userId]
+	otpMap, ok := service.OtpCache[userId]
 	if !ok {
 		return nil, internal.OtpNotFound
 	}

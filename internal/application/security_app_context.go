@@ -11,20 +11,16 @@ import (
 	"go-security/internal/service/oauth"
 	"go-security/internal/web/controller"
 	web "go-security/internal/web/middleware"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func MustNewSecurityApplicationContext(config *Config) *ApplicationContext {
+func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engine *echo.Echo) *ApplicationContext {
 	log.Printf("Starting application...")
 	fmt.Printf("%s\n", config.AsJson())
 	ctx := context.Background()
-	engine := echo.New()
-
-	sqlEngine, err := gorm.Open(postgres.Open(config.PostgresDataSource.AsDSN()), &gorm.Config{})
 	log.Info().Msgf("Connected to database: %s", config.PostgresDataSource.DatabaseName)
 
-	otpService := service.NewOtpService()
+	otpService := service.NewOtpService(service.GenerateOtpCode)
 	userRepo := repository.NewUserRepository(sqlEngine)
 	userService := service.NewUserService(userRepo)
 	authService := service.NewAuthService(userService, config.Security.Secret)
@@ -48,11 +44,6 @@ func MustNewSecurityApplicationContext(config *Config) *ApplicationContext {
 		userController,
 		googleAuthController,
 	}
-
-	if err != nil {
-		panic(err)
-	}
-
 	middlewares := []echo.MiddlewareFunc{
 		middleware.Recover(),
 		middleware.Logger(),
@@ -68,10 +59,6 @@ func MustNewSecurityApplicationContext(config *Config) *ApplicationContext {
 	}
 
 	appContext := &ApplicationContext{
-		Engine:    engine,
-		SqlEngine: sqlEngine,
-
-		AppConfig:   config,
 		Controllers: controllers,
 		Models:      repository.NewSecurityModelProvider().ProvideModels(),
 		Services:    services,

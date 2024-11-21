@@ -2,12 +2,11 @@ package application
 
 import (
 	"encoding/json"
+	"go-security/internal"
 	"go-security/internal/repository"
 	"go-security/internal/service"
 	"go-security/internal/service/oauth"
 	"go-security/internal/web/controller"
-	"gopkg.in/yaml.v3"
-	"os"
 )
 
 type Config struct {
@@ -26,14 +25,6 @@ func (config *Config) AsJson() string {
 	return string(_json)
 }
 
-func MustNewConfigFromFile(configPath string) *Config {
-	file, err := os.ReadFile(configPath)
-	if err != nil {
-		panic(err)
-	}
-	var config Config
-	if err := yaml.Unmarshal(file, &config); err != nil {
-		panic(err)
-	}
-	return &config
+func MustNewAppConfigFromFile(configPath string) *Config {
+	return internal.MustNewConfigFromFile[Config](configPath)
 }

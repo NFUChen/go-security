@@ -2,14 +2,20 @@ package application
 
 import (
 	"fmt"
+	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"path/filepath"
 	"strconv"
 )
 
 type Application struct {
-	Context *ApplicationContext
+	ContextCollection []*ApplicationContext
+	AppConfig         *Config
+	Engine            *echo.Echo
+	SqlEngine         *gorm.DB
 }
 
 type Runnable interface {
@@ -17,10 +23,13 @@ type Runnable interface {
 }
 
 func (app *Application) migrateDatabase() {
-	err := app.Context.SqlEngine.AutoMigrate(app.Context.Models...)
-	if err != nil {
-		panic(err)
+	for _, _context := range app.ContextCollection {
+		err := app.SqlEngine.AutoMigrate(_context.Models...)
+		if err != nil {
+			panic(err)
+		}
 	}
+
 }
 
 func (app *Application) setupLogger() {
@@ -30,33 +39,48 @@ func (app *Application) setupLogger() {
 	log.Logger = log.With().Caller().Logger()
 }
 
-func MustNewApplication(appContext *ApplicationContext) *Application {
-	app := &Application{
-		Context: appContext,
+func (app *Application) InjectContextCollection(appContextCollection ...*ApplicationContext) {
+	app.ContextCollection = appContextCollection
+}
+
+func MustNewApplication(config *Config) *Application {
+	engine := echo.New()
+	sqlEngine, err := gorm.Open(postgres.Open(config.PostgresDataSource.AsDSN()), &gorm.Config{})
+	if err != nil {
+		panic(err)
 	}
-	app.setupLogger()
-	return app
+	return &Application{
+		AppConfig: config,
+		Engine:    engine,
+		SqlEngine: sqlEngine,
+	}
 }
 
 func (app *Application) registerControllerRoutes() {
-	for _, _controller := range app.Context.Controllers {
-		_controller.RegisterRoutes()
+	for _, _context := range app.ContextCollection {
+		for _, _controller := range _context.Controllers {
+			_controller.RegisterRoutes()
+		}
 	}
+
 }
 
 func (app *Application) postConstructServices() {
-	for _, _service := range app.Context.Services {
-		_service.PostConstruct()
+	for _, _context := range app.ContextCollection {
+		for _, _service := range _context.Services {
+			_service.PostConstruct()
+		}
 	}
+
 }
 
 func (app *Application) Run() {
 	log.Printf("Starting application...")
-	fmt.Printf("%s\n", app.Context.AppConfig.AsJson())
+	fmt.Printf("%s\n", app.AppConfig.AsJson())
 	app.migrateDatabase()
 	app.postConstructServices()
 	app.registerControllerRoutes()
-	err := app.Context.Engine.Start(fmt.Sprintf(":%d", app.Context.AppConfig.Server.Port))
+	err := app.Engine.Start(fmt.Sprintf(":%d", app.AppConfig.Server.Port))
 	if err != nil {
 		panic(err)
 	}

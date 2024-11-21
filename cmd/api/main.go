@@ -5,8 +5,9 @@ import (
 )
 
 func main() {
-	config := application.MustNewConfigFromFile("./config.yaml")
-	context := application.MustNewSecurityApplicationContext(config)
-	app := application.MustNewApplication(context)
+	config := application.MustNewAppConfigFromFile("./config.yaml")
+	app := application.MustNewApplication(config)
+	context := application.MustNewSecurityApplicationContext(config, app.SqlEngine, app.Engine)
+	app.InjectContextCollection(context)
 	app.Run()
 }
