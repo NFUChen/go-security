@@ -45,13 +45,17 @@ func NewAuthService(userService *UserService, secret string) *AuthService {
 		Secret:      secret,
 		UserService: userService,
 	}
-	authService.addBuiltinRoles()
-	role, err := userService.FindAllRoles(context.Background())
+
+	return authService
+}
+
+func (service *AuthService) PostConstruct() {
+	service.addBuiltinRoles()
+	roles, err := service.UserService.FindAllRoles(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	authService.AllRoles = role
-	return authService
+	service.AllRoles = roles
 }
 
 func (service *AuthService) addBuiltinRoles() {

@@ -72,10 +72,3 @@ func (user *User) Validate() error {
 	}
 	return nil
 }
-
-func GetAllModels() []any {
-	return []any{
-		&User{},
-		&UserRole{},
-	}
-}
