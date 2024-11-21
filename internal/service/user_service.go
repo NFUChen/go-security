@@ -36,14 +36,26 @@ func (service *UserService) FindAllUsers(ctx context.Context) ([]*User, error) {
 }
 
 func (service *UserService) FindUserByID(ctx context.Context, id uint) (*User, error) {
-	return service.UserRepository.FindByID(ctx, id)
+	user, err := service.UserRepository.FindByID(ctx, id)
+	if err != nil {
+		return nil, internal.UserNotFound
+	}
+	return user, nil
 }
 
 func (service *UserService) FindUserByEmail(ctx context.Context, email string) (*User, error) {
-	return service.UserRepository.FindByEmail(ctx, email)
+	user, err := service.UserRepository.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, internal.UserNotFound
+	}
+	return user, nil
 }
 func (service *UserService) FindUserByUserName(ctx context.Context, name string) (*User, error) {
-	return service.UserRepository.FindByUserName(ctx, name)
+	user, err := service.UserRepository.FindByUserName(ctx, name)
+	if err != nil {
+		return nil, internal.UserNotFound
+	}
+	return user, nil
 }
 
 func (service *UserService) SaveUser(ctx context.Context, user *User) (*User, error) {
@@ -56,5 +68,8 @@ func (service *UserService) ResetUserPassword(ctx context.Context, user *User, p
 }
 
 func (service *UserService) ActivateUser(ctx context.Context, user *User) error {
+	if user.IsVerified {
+		return nil
+	}
 	return service.UserRepository.ActivateUser(ctx, user)
 }

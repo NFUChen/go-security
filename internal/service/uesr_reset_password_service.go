@@ -7,6 +7,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/rs/zerolog/log"
 	"go-security/internal"
+	. "go-security/internal/repository"
 	"html/template"
 	"time"
 )
@@ -31,12 +32,15 @@ type UserResetPasswordService struct {
 }
 
 func NewUserResetPasswordService(smtpService ISmtpService, userService *UserService, authService *AuthService, otpService *OtpService) *UserResetPasswordService {
-	return &UserResetPasswordService{
+	service := &UserResetPasswordService{
 		SmtpService: smtpService,
 		UserService: userService,
 		AuthService: authService,
 		OtpService:  otpService,
 	}
+	fmt.Printf("")
+	return service
+
 }
 
 func (service *UserResetPasswordService) parseResetPasswordClaims(token string) (*ResetPasswordClaims, error) {
@@ -44,6 +48,7 @@ func (service *UserResetPasswordService) parseResetPasswordClaims(token string) 
 	if err != nil {
 		return nil, err
 	}
+
 	if claims, ok := _jwt.Claims.(jwt.MapClaims); ok && _jwt.Valid {
 		resetPasswordClaims, err := service.extractResetPasswordClaims(&claims)
 		if err != nil {
@@ -58,7 +63,7 @@ func (service *UserResetPasswordService) extractResetPasswordClaims(claims *jwt.
 	var resetPasswordClaims ResetPasswordClaims
 	purpose, ok := (*claims)["purpose"].(string)
 	if !ok || purpose != string(PurposeResetPassword) {
-		return nil, fmt.Errorf("invalid or missing 'purpose' claim")
+		return nil, fmt.Errorf("invalid or missing 'purpose' claim, getting %s, expects %v", purpose, PurposeResetPassword)
 	}
 	userID, ok := (*claims)["user_id"].(float64)
 	if !ok {
@@ -92,12 +97,15 @@ func (service *UserResetPasswordService) ResetPassword(ctx context.Context, toke
 	if newPassword != confirmedPassword {
 		return internal.ResetPasswordNotMatched
 	}
-
+	log.Info().Msgf("Reset Password: %v", token)
 	claims, err := service.parseResetPasswordClaims(token)
 	if err != nil {
+		log.Warn().Msgf("Failed to parse reset password claims: %v", err)
 		return err
 	}
 
+	log.Info().Msgf("Claims: %v", claims)
+	log.Info().Msgf("Begin to verify OTP: %v", otpCode)
 	if err := service.OtpService.VerifyOtp(claims.UserID, PurposeResetPassword, otpCode); err != nil {
 		return err
 	}
@@ -108,11 +116,7 @@ func (service *UserResetPasswordService) ResetPassword(ctx context.Context, toke
 	return service.doResetPassword(ctx, claims.UserID, newPassword)
 }
 
-func (service *UserResetPasswordService) issueResetPasswordToken(email string) (string, error) {
-	user, err := service.UserService.FindUserByEmail(context.Background(), email)
-	if err != nil {
-		return "", err
-	}
+func (service *UserResetPasswordService) issueResetPasswordToken(user *User) (string, error) {
 	claims := jwt.MapClaims{
 		"purpose": string(PurposeResetPassword),
 		"user_id": user.ID,
@@ -122,15 +126,16 @@ func (service *UserResetPasswordService) issueResetPasswordToken(email string) (
 }
 
 func (service *UserResetPasswordService) SendResetPasswordEmail(email string) (string, error) {
-	token, err := service.issueResetPasswordToken(email)
+	user, err := service.UserService.FindUserByEmail(context.Background(), email)
+	if err != nil {
+		return "", err
+	}
+	token, err := service.issueResetPasswordToken(user)
 	claims, err := service.parseResetPasswordClaims(token)
 	if err != nil {
 		return "", err
 	}
-	user, err := service.UserService.FindUserByID(context.Background(), claims.UserID)
-	if err != nil {
-		return "", err
-	}
+
 	otp := service.OtpService.GenerateOtp(claims.UserID, PurposeResetPassword)
 
 	subject := "Reset Password"

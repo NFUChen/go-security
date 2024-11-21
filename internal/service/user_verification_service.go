@@ -3,8 +3,10 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/golang-jwt/jwt/v4"
 	"go-security/internal"
+	. "go-security/internal/repository"
 	"html/template"
 	"time"
 )
@@ -21,11 +23,7 @@ type UserVerificationService struct {
 	OtpService  *OtpService
 }
 
-func (service *UserVerificationService) issueVerificationToken(ctx context.Context, email string) (string, error) {
-	user, err := service.UserService.FindUserByEmail(ctx, email)
-	if err != nil {
-		return "", err
-	}
+func (service *UserVerificationService) issueVerificationToken(user *User) (string, error) {
 	if user.IsVerified {
 		return "", internal.UserAlreadyVerified
 	}
@@ -63,7 +61,7 @@ func (service *UserVerificationService) SendVerificationEmail(ctx context.Contex
 
 	message := service.SmtpService.CreateNewMessage(email, "Email Verification", emailContent, ContentTypeHtml)
 	service.SmtpService.SendEmail(message)
-	token, err := service.issueVerificationToken(ctx, email)
+	token, err := service.issueVerificationToken(user)
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +87,7 @@ func (service *UserVerificationService) extractVerificationClaims(claims *jwt.Ma
 	var verificationClaims UserVerificationClaims
 	purpose, ok := (*claims)["purpose"].(string)
 	if !ok || purpose != string(PurposeGuestEmailVerification) {
-		return nil, internal.TokenInvalid
+		return nil, fmt.Errorf("invalid or missing 'purpose' claim, getting %s, expects %v", purpose, PurposeGuestEmailVerification)
 	}
 	userID, ok := (*claims)["user_id"].(float64)
 	if !ok {

@@ -45,12 +45,18 @@ func (service *OtpService) generateOtp() string {
 func (service *OtpService) GenerateOtp(userId uint, purpose Purpose) *OTP {
 	code := service.generateOtp()
 	otp := &OTP{
+		UserId:         userId,
 		Purpose:        purpose,
 		Code:           code,
 		ExpirationTime: time.Now().Add(time.Minute * 5).Unix(),
 	}
+
 	service.otpLock.Lock()
 	defer service.otpLock.Unlock()
+
+	if service.otpCache[userId] == nil {
+		service.otpCache[userId] = make(map[Purpose]*OTP)
+	}
 	service.otpCache[userId][purpose] = otp
 	return otp
 }

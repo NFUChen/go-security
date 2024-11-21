@@ -30,7 +30,16 @@ func (controller *AuthController) RegisterRoutes() {
 	controller.Router.POST("/public/verify-email", controller.VerifyEmail)
 
 	controller.Router.GET("/private/logout", controller.Logout)
+}
 
+func NewAuthController(routerGroup *echo.Group, authService *service.AuthService, userService *service.UserService, verificationService *service.UserVerificationService, resetPasswordService *service.UserResetPasswordService) *AuthController {
+	return &AuthController{
+		AuthService:              authService,
+		UserService:              userService,
+		Router:                   routerGroup,
+		UserResetPasswordService: resetPasswordService,
+		UserVerificationService:  verificationService,
+	}
 }
 
 func (controller *AuthController) RegisterUser(ctx echo.Context) error {
@@ -137,12 +146,4 @@ func (controller *AuthController) VerifyEmail(ctx echo.Context) error {
 		return err
 	}
 	return ctx.String(http.StatusOK, "Email verified successfully")
-}
-
-func NewAuthController(routerGroup *echo.Group, authService *service.AuthService, userService *service.UserService) *AuthController {
-	return &AuthController{
-		AuthService: authService,
-		UserService: userService,
-		Router:      routerGroup,
-	}
 }

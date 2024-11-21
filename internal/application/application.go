@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go-security/internal/repository"
 	"go-security/internal/service"
+	"go-security/internal/service/oauth"
 	"go-security/internal/web/controller"
 	web "go-security/internal/web/middleware"
 	"gorm.io/driver/postgres"
@@ -35,7 +36,7 @@ func (app *Application) migrateDatabase() {
 	}
 }
 
-func setupLogger() {
+func (app *Application) setupLogger() {
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
 		return filepath.Base(file) + ":" + strconv.Itoa(line)
 	}
@@ -45,7 +46,6 @@ func setupLogger() {
 func MustNewApplication(config *Config) *Application {
 	log.Printf("Starting application...")
 	fmt.Printf("%s\n", config.AsJson())
-	setupLogger()
 	ctx := context.Background()
 	engine := echo.New()
 
@@ -62,15 +62,19 @@ func MustNewApplication(config *Config) *Application {
 	resetPasswordService := service.NewUserResetPasswordService(smtpService, userService, authService, otpService)
 	verificationService := service.NewUserVerificationService(smtpService, userService, authService, otpService)
 
+	googleAuthService := oauth.NewGoogleAuthService(&config.GoogleAuthConfig, authService, userService)
+
 	baseRouterGroup := engine.Group("/api")
 
 	mainController := controller.NewMainController(engine)
-	authController := controller.NewAuthController(baseRouterGroup, authService, userService)
+	authController := controller.NewAuthController(baseRouterGroup, authService, userService, verificationService, resetPasswordService)
 	userController := controller.NewUserController(baseRouterGroup, userService, resetPasswordService, verificationService)
+	googleAuthController := controller.NewGoogleAuthController(baseRouterGroup, googleAuthService)
 	controllers := []controller.Controller{
 		mainController,
 		authController,
 		userController,
+		googleAuthController,
 	}
 
 	if err != nil {
@@ -93,6 +97,7 @@ func MustNewApplication(config *Config) *Application {
 		Controllers: controllers,
 		SqlEngine:   sqlEngine,
 	}
+	app.setupLogger()
 
 	return app
 }

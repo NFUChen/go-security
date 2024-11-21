@@ -27,7 +27,7 @@ type SmtpConfig struct {
 	Host           string `yaml:"host"`
 	Port           int    `yaml:"port"`
 	Sender         string `yaml:"sender"`
-	SenderPassword string `yaml:"sender_password"`
+	SenderPassword string `yaml:"sender_password" json:"-"`
 }
 
 type SmtpService struct {

@@ -46,6 +46,11 @@ func NewAuthService(userService *UserService, secret string) *AuthService {
 		UserService: userService,
 	}
 	authService.addBuiltinRoles()
+	role, err := userService.FindAllRoles(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	authService.AllRoles = role
 	return authService
 }
 
@@ -65,7 +70,7 @@ func (service *AuthService) Login(ctx context.Context, email string, password st
 	if err != nil {
 		return "", internal.UserPasswordNotMatched
 	}
-	return service.IssueLoginToken(user.Name, role, time.Hour)
+	return service.IssueLoginToken(user.Name, *role, time.Hour)
 }
 
 func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
@@ -74,7 +79,7 @@ func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
 	log.Info().Msgf("Issue Token: %v", tokenString)
 	return tokenString
 }
-func (service *AuthService) IssueLoginToken(userName string, role *UserRole, expiration time.Duration) (string, error) {
+func (service *AuthService) IssueLoginToken(userName string, role UserRole, expiration time.Duration) (string, error) {
 
 	claims := jwt.MapClaims{
 		"user_name":  userName,
@@ -182,7 +187,7 @@ func (service *AuthService) RegisterUser(ctx context.Context, name string, email
 	existingUser, err := service.UserService.FindUserByEmail(ctx, email)
 	if err == nil {
 		log.Info().Msgf("User already exists: %v", existingUser)
-		return nil, internal.UserAlreadyExists
+		return existingUser, internal.UserAlreadyExists
 	}
 	hashedPassword, err := service.GenerateHashPassword(password)
 	if err != nil {
