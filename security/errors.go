@@ -3,6 +3,7 @@ package security
 import "errors"
 
 var (
+	UserPlatformEmpty       = errors.New("UserPlatformEmpty")
 	UserNotFound            = errors.New("UserNotFound")
 	UserAlreadyExists       = errors.New("UserAlreadyExists")
 	UserAlreadyVerified     = errors.New("UserAlreadyVerified")

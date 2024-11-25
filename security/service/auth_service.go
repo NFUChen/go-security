@@ -18,9 +18,11 @@ const (
 type SecurityConfig struct {
 	Secret                string   `yaml:"secret" json:"-"`
 	ExcludedRoutePrefixes []string `yaml:"excluded_routes_prefixes"`
+	AuthRedirectUrl       string   `yaml:"auth_redirect_url"`
 }
 
 type UserClaims struct {
+	UserID             uint    `json:"user_id"`
 	UserName           string  `json:"user_name"`
 	RoleName           string  `json:"role"`
 	RoleIndex          uint    `json:"role_index"`
@@ -35,9 +37,10 @@ func (claims *UserClaims) Validate() error {
 }
 
 type AuthService struct {
-	Secret      string
-	UserService *UserService
-	AllRoles    []*UserRole
+	Secret       string
+	UserService  *UserService
+	AllRoles     []*UserRole
+	SelfPlatForm *Platform
 }
 
 func NewAuthService(userService *UserService, secret string) *AuthService {
@@ -50,18 +53,17 @@ func NewAuthService(userService *UserService, secret string) *AuthService {
 }
 
 func (service *AuthService) PostConstruct() {
-	service.addBuiltinRoles()
 	roles, err := service.UserService.FindAllRoles(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	service.AllRoles = roles
-}
 
-func (service *AuthService) addBuiltinRoles() {
-	for _, role := range BuiltinRoles {
-		_ = service.UserService.AddRole(context.Background(), &role)
+	platform, err := service.UserService.FindPlatformByName(context.Background(), PlatformSelf)
+	if err != nil {
+		panic(err)
 	}
+	service.SelfPlatForm = platform
+	service.AllRoles = roles
 }
 
 func (service *AuthService) Login(ctx context.Context, email string, password string) (string, error) {
@@ -69,12 +71,11 @@ func (service *AuthService) Login(ctx context.Context, email string, password st
 	if err != nil {
 		return "", security.UserNotFound
 	}
-	role, err := service.UserService.FindRoleByName(ctx, user.Role.Name)
 	err = service.VerifyPassword(password, user.Password)
 	if err != nil {
 		return "", security.UserPasswordNotMatched
 	}
-	return service.IssueLoginToken(user.Name, *role, time.Hour)
+	return service.IssueLoginToken(user, time.Hour)
 }
 
 func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
@@ -83,12 +84,13 @@ func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
 	log.Info().Msgf("Issue Token: %v", tokenString)
 	return tokenString
 }
-func (service *AuthService) IssueLoginToken(userName string, role UserRole, expiration time.Duration) (string, error) {
+func (service *AuthService) IssueLoginToken(user *User, expiration time.Duration) (string, error) {
 
 	claims := jwt.MapClaims{
-		"user_name":  userName,
-		"role_name":  role.Name,
-		"role_index": role.RoleIndex,
+		"user_name":  user.Name,
+		"user_id":    user.ID,
+		"role_name":  user.Role.Name,
+		"role_index": user.Role.RoleIndex,
 		"exp":        time.Now().Add(expiration).Unix(),
 	}
 	return service.IssueJsonWebToken(&claims), nil
@@ -167,27 +169,25 @@ func (service *AuthService) VerifyPassword(password, hashedPassword string) erro
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
-func (service *AuthService) NewUser(name, email, password, role string) (*User, error) {
-	userRole, err := service.UserService.FindRoleByName(context.Background(), role)
-	if err != nil {
-		return nil, err
-	}
+func (service *AuthService) NewUser(name string, email string, password string, role *UserRole, platform *Platform) (*User, error) {
+
 	user := &User{
 		Name:       name,
 		Email:      email,
 		Password:   password,
-		RoleID:     userRole.ID,
+		RoleID:     role.ID,
 		IsVerified: false,
+		Platform:   *platform,
 	}
 
-	err = user.Validate()
+	err := user.Validate()
 	if err != nil {
 		return nil, err
 	}
 	return user, nil
 }
 
-func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string) (*User, error) {
+func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string, platformName string) (*User, error) {
 	existingUser, err := service.UserService.FindUserByEmail(ctx, email)
 	if err == nil {
 		log.Info().Msgf("User already exists: %v", existingUser)
@@ -197,9 +197,20 @@ func (service *AuthService) RegisterUser(ctx context.Context, name string, email
 	if err != nil {
 		return nil, err
 	}
-	user, err := service.NewUser(name, email, hashedPassword, RoleGuest)
+	role, err := service.UserService.FindRoleByName(ctx, RoleGuest)
 	if err != nil {
 		return nil, err
 	}
+
+	platform, err := service.UserService.FindPlatformByName(ctx, platformName)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := service.NewUser(name, email, hashedPassword, role, platform)
+	if err != nil {
+		return nil, err
+	}
+
 	return service.UserService.SaveUser(ctx, user)
 }

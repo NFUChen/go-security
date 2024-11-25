@@ -39,7 +39,7 @@ func (middleware *AuthMiddleware) AuthMiddlewareFunc(next echo.HandlerFunc) echo
 
 		cookie, err := ctx.Cookie(service.CookieName)
 		if err != nil {
-			return ctx.JSON(http.StatusUnauthorized, LoginRequired)
+			return ctx.JSON(http.StatusUnauthorized, map[string]string{"error": LoginRequired.Error()})
 		}
 		userClaims, err := middleware.AuthService.ParseUserClaims(cookie.Value)
 		if err != nil {

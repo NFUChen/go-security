@@ -7,7 +7,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/rs/zerolog/log"
 	"go-security/security"
-	. "go-security/security/repository"
 	"html/template"
 	"time"
 )
@@ -116,7 +115,12 @@ func (service *UserResetPasswordService) ResetPassword(ctx context.Context, toke
 	return service.doResetPassword(ctx, claims.UserID, newPassword)
 }
 
-func (service *UserResetPasswordService) issueResetPasswordToken(user *User) (string, error) {
+func (service *UserResetPasswordService) IssueResetPasswordToken(ctx context.Context, email string) (string, error) {
+	user, err := service.UserService.FindUserByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+
 	claims := jwt.MapClaims{
 		"purpose": string(PurposeResetPassword),
 		"user_id": user.ID,
@@ -125,13 +129,14 @@ func (service *UserResetPasswordService) issueResetPasswordToken(user *User) (st
 	return service.AuthService.IssueJsonWebToken(&claims), nil
 }
 
-func (service *UserResetPasswordService) SendResetPasswordEmail(email string) (string, error) {
-	user, err := service.UserService.FindUserByEmail(context.Background(), email)
+func (service *UserResetPasswordService) SendResetPasswordEmail(token string) (string, error) {
+
+	claims, err := service.parseResetPasswordClaims(token)
 	if err != nil {
 		return "", err
 	}
-	token, err := service.issueResetPasswordToken(user)
-	claims, err := service.parseResetPasswordClaims(token)
+
+	user, err := service.UserService.FindUserByID(context.Background(), claims.UserID)
 	if err != nil {
 		return "", err
 	}

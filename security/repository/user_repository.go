@@ -13,6 +13,8 @@ type IUserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByUserName(ctx context.Context, name string) (*User, error)
 	AddRole(ctx context.Context, role *UserRole) error
+	AddPlatform(ctx context.Context, platform *Platform) error
+	FindPlatformByName(ctx context.Context, name string) (*Platform, error)
 	FindAllRoles(ctx context.Context) ([]*UserRole, error)
 	FindRoleByName(ctx context.Context, name string) (*UserRole, error)
 	UpdateUserPassword(ctx context.Context, user *User, password string) error
@@ -21,6 +23,16 @@ type IUserRepository interface {
 
 type UserRepository struct {
 	Engine *gorm.DB
+}
+
+func (repo *UserRepository) FindPlatformByName(ctx context.Context, name string) (*Platform, error) {
+	var platform Platform
+	err := repo.Engine.WithContext(ctx).First(&platform, "name = ?", name).Error
+	return &platform, err
+}
+
+func (repo *UserRepository) AddPlatform(ctx context.Context, platform *Platform) error {
+	return repo.Engine.WithContext(ctx).Create(platform).Error
 }
 
 func (repo *UserRepository) ActivateUser(ctx context.Context, user *User) error {

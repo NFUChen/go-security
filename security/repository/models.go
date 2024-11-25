@@ -5,7 +5,6 @@ import (
 	"go-security/security"
 	"gorm.io/gorm"
 	"net/mail"
-	"time"
 )
 
 type PostgresDataSourceConfig struct {
@@ -33,6 +32,7 @@ const (
 type RoleIndex uint
 
 type UserRole struct {
+	gorm.Model
 	ID        uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
 	Name      string `gorm:"type:varchar(50);not null" json:"name"`
 	RoleIndex uint   `gorm:"type:int;unique;not null" json:"role_index"`
@@ -47,16 +47,22 @@ var BuiltinRoles = []UserRole{
 }
 
 type User struct {
-	ID         uint           `gorm:"primaryKey" json:"id"` // Auto-increment primary key
-	Name       string         `gorm:"type:varchar(100);not null" json:"name"`
-	Email      string         `gorm:"type:varchar(100);unique;not null" json:"email"`
-	Password   string         `gorm:"type:varchar(255);not null" json:"-"` // Excluded from JSON responses
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
-	RoleID     uint           `gorm:"not null" json:"role_id"` // Foreign key
-	IsVerified bool           `gorm:"default:false" json:"is_verified"`
-	Role       UserRole       `gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
+	gorm.Model
+	ID         uint     `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	Name       string   `gorm:"type:varchar(100);not null" json:"name"`
+	Email      string   `gorm:"type:varchar(100);unique;not null" json:"email"`
+	Password   string   `gorm:"type:varchar(255);not null" json:"-"` // Excluded from JSON responses
+	RoleID     uint     `gorm:"not null" json:"role_id"`             // Foreign key
+	IsVerified bool     `gorm:"default:false" json:"is_verified"`
+	Role       UserRole `gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
+	PlatformID uint     `gorm:"not null" json:"platform_id"` // Foreign key
+	Platform   Platform `gorm:"foreignKey:PlatformID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"platform"`
+	ExternalID string   `gorm:"type:varchar(100);unique" json:"external_id"`
+}
+
+type Platform struct {
+	ID   uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	Name string `gorm:"type:varchar(100);not null;unique" json:"name"`
 }
 
 func (user *User) Validate() error {

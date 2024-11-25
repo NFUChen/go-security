@@ -6,14 +6,47 @@ import (
 	. "go-security/security/repository"
 )
 
+const (
+	PlatformSelf   string = "Self"
+	PlatformGoogle string = "Google"
+	PlatformLine   string = "LINE"
+)
+
+var BuiltinPlatforms = []Platform{
+	{Name: PlatformSelf},
+	{Name: PlatformGoogle},
+	{Name: PlatformLine},
+}
+
 type UserService struct {
 	UserRepository IUserRepository
+}
+
+func (service *UserService) PostConstruct() {
+	service.addBuiltinRoles()
+	service.addBuiltinPlatforms()
+}
+
+func (service *UserService) addBuiltinPlatforms() {
+	for _, platform := range BuiltinPlatforms {
+		_ = service.UserRepository.AddPlatform(context.Background(), &platform)
+	}
+}
+
+func (service *UserService) addBuiltinRoles() {
+	for _, role := range BuiltinRoles {
+		_ = service.AddRole(context.Background(), &role)
+	}
 }
 
 func NewUserService(userRepository IUserRepository) *UserService {
 	return &UserService{
 		UserRepository: userRepository,
 	}
+}
+
+func (service *UserService) AddPlatform(ctx context.Context, platform *Platform) error {
+	return service.UserRepository.AddPlatform(ctx, platform)
 }
 
 func (service *UserService) AddRole(ctx context.Context, role *UserRole) error {
@@ -29,6 +62,12 @@ func (service *UserService) FindRoleByName(ctx context.Context, name string) (*U
 		return nil, security.UserRoleNotAllowed
 	}
 	return service.UserRepository.FindRoleByName(ctx, name)
+}
+func (service *UserService) FindPlatformByName(ctx context.Context, name string) (*Platform, error) {
+	if len(name) == 0 {
+		return nil, security.UserPlatformEmpty
+	}
+	return service.UserRepository.FindPlatformByName(ctx, name)
 }
 
 func (service *UserService) FindAllUsers(ctx context.Context) ([]*User, error) {

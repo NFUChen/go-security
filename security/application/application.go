@@ -8,6 +8,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"path/filepath"
+	"reflect"
 	"strconv"
 )
 
@@ -59,6 +60,7 @@ func MustNewApplication(config *Config) *Application {
 func (app *Application) registerControllerRoutes() {
 	for _, _context := range app.ContextCollection {
 		for _, _controller := range _context.Controllers {
+			log.Info().Msgf("Registering routes for controller: %s", reflect.TypeOf(_controller).String())
 			_controller.RegisterRoutes()
 		}
 	}
@@ -68,10 +70,11 @@ func (app *Application) registerControllerRoutes() {
 func (app *Application) postConstructServices() {
 	for _, _context := range app.ContextCollection {
 		for _, _service := range _context.Services {
+			log.Info().Msgf("PostConstruct for service: %s", reflect.TypeOf(_service).String())
 			_service.PostConstruct()
 		}
 	}
-
+	log.Info().Msg("PostConstruct for all services completed")
 }
 
 func (app *Application) Run() {

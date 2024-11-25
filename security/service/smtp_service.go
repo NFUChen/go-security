@@ -39,6 +39,8 @@ type SmtpService struct {
 	QueueLock           *sync.Mutex
 }
 
+func (service *SmtpService) PostConstruct() {}
+
 func (service *SmtpService) GetSmtpConfig() *SmtpConfig {
 	return service.SmtpConfig
 }

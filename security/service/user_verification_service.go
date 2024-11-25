@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
 	"go-security/security"
-	. "go-security/security/repository"
 	"html/template"
 	"time"
 )
@@ -23,7 +22,12 @@ type UserVerificationService struct {
 	OtpService  *OtpService
 }
 
-func (service *UserVerificationService) issueVerificationToken(user *User) (string, error) {
+func (service *UserVerificationService) IssueVerificationToken(ctx context.Context, userID uint) (string, error) {
+	user, err := service.UserService.FindUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+
 	if user.IsVerified {
 		return "", security.UserAlreadyVerified
 	}
@@ -39,33 +43,35 @@ func (service *UserVerificationService) issueVerificationToken(user *User) (stri
 	return _jwt, nil
 }
 
-func (service *UserVerificationService) SendVerificationEmail(ctx context.Context, email string) (string, error) {
-	user, err := service.UserService.FindUserByEmail(ctx, email)
+func (service *UserVerificationService) SendVerificationEmail(ctx context.Context, token string) error {
+	claims, err := service.parseVerificationClaims(token)
 	if err != nil {
-		return "", err
+		return err
+	}
+
+	user, err := service.UserService.FindUserByID(ctx, claims.UserID)
+	if err != nil {
+		return err
 	}
 
 	_template, err := template.New("email_verification").Parse(EMAIL_VERIFICATION_HTML_TEMPLATE)
 	if err != nil {
-		return "", err
+		return err
 	}
 	otp := service.OtpService.GenerateOtp(user.ID, PurposeGuestEmailVerification)
 
 	var buffer bytes.Buffer
 	emailTemplate := NewEmailTemplate(user.Name, otp.Code, service.SmtpService.GetSmtpConfig().CompanyName)
 	if err := _template.Execute(&buffer, emailTemplate); err != nil {
-		return "", err
+		return err
 	}
 
 	emailContent := buffer.String()
 
-	message := service.SmtpService.CreateNewMessage(email, "Email Verification", emailContent, ContentTypeHtml)
+	message := service.SmtpService.CreateNewMessage(user.Email, "Email Verification", emailContent, ContentTypeHtml)
 	service.SmtpService.SendEmail(message)
-	token, err := service.issueVerificationToken(user)
-	if err != nil {
-		return "", err
-	}
-	return token, nil
+
+	return nil
 }
 
 func (service *UserVerificationService) parseVerificationClaims(token string) (*UserVerificationClaims, error) {

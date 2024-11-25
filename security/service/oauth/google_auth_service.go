@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"go-security/security"
-	. "go-security/security/repository"
 	. "go-security/security/service"
 	"time"
 )
@@ -55,21 +54,10 @@ func NewGoogleAuthService(authConfig *GoogleAuthConfig, authService *AuthService
 	}
 }
 
-func (service *GoogleAuthService) RegisterUser(ctx context.Context, user *GoogleUser) (*User, error) {
-	newUser, err := service.AuthService.RegisterUser(ctx, user.Email, user.FullName(), user.SubjectIdentifier)
-	if errors.Is(err, security.UserAlreadyExists) {
-		return newUser, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return newUser, nil
-}
-
 func (service *GoogleAuthService) RegisterAndLogin(ctx context.Context, user *GoogleUser) (string, error) {
 	targetUser, err := service.UserService.FindUserByEmail(ctx, user.Email)
 	if targetUser == nil && errors.Is(err, security.UserNotFound) {
-		targetUser, err = service.AuthService.RegisterUser(ctx, user.FullName(), user.Email, user.SubjectIdentifier)
+		targetUser, err = service.AuthService.RegisterUser(ctx, user.FullName(), user.Email, user.SubjectIdentifier, PlatformGoogle)
 		if err != nil {
 			return "", err
 		}
@@ -88,7 +76,7 @@ func (service *GoogleAuthService) RegisterAndLogin(ctx context.Context, user *Go
 		}
 	}
 	// Issue a login token for the user.
-	token, err := service.AuthService.IssueLoginToken(targetUser.Name, targetUser.Role, expirationTime)
+	token, err := service.AuthService.IssueLoginToken(targetUser, expirationTime)
 	if err != nil {
 		return "", err
 	}
