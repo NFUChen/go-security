@@ -32,5 +32,5 @@ func (controller *GoogleAuthController) RegisterAndLogin(ctx echo.Context) error
 	}
 	expiration := time.Until(time.Unix(googleUser.Expiration, 0))
 	writeCookie(&ctx, CookieName, token, expiration)
-	return ctx.JSON(http.StatusSeeOther, map[string]string{"redirect": controller.RedirectURL})
+	return ctx.JSON(http.StatusOK, map[string]string{"redirectURL": controller.RedirectURL})
 }

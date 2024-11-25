@@ -22,11 +22,23 @@ type SecurityConfig struct {
 }
 
 type UserClaims struct {
-	UserID             uint    `json:"user_id"`
+	ID                 uint    `json:"id"`
 	UserName           string  `json:"user_name"`
 	RoleName           string  `json:"role"`
 	RoleIndex          uint    `json:"role_index"`
 	ExpirationDuration float64 `json:"exp"`
+	IsVerified         bool    `json:"is_verified"`
+}
+
+func NewUserClaims(userID uint, userName string, roleName string, roleIndex uint, expiration float64, isVerified bool) *UserClaims {
+	return &UserClaims{
+		ID:                 userID,
+		UserName:           userName,
+		RoleName:           roleName,
+		RoleIndex:          roleIndex,
+		ExpirationDuration: expiration,
+		IsVerified:         isVerified,
+	}
 }
 
 func (claims *UserClaims) Validate() error {
@@ -87,42 +99,50 @@ func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
 func (service *AuthService) IssueLoginToken(user *User, expiration time.Duration) (string, error) {
 
 	claims := jwt.MapClaims{
-		"user_name":  user.Name,
-		"user_id":    user.ID,
-		"role_name":  user.Role.Name,
-		"role_index": user.Role.RoleIndex,
-		"exp":        time.Now().Add(expiration).Unix(),
+		"user_name":   user.Name,
+		"id":          user.ID,
+		"role_name":   user.Role.Name,
+		"role_index":  user.Role.RoleIndex,
+		"exp":         time.Now().Add(expiration).Unix(),
+		"is_verified": user.IsVerified,
 	}
 	return service.IssueJsonWebToken(&claims), nil
 }
 
 func (service *AuthService) ExtractUserClaims(claims *jwt.MapClaims) (*UserClaims, error) {
-	userClaims := UserClaims{}
+
+	userID, ok := (*claims)["id"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("invalid or missing 'id' claim")
+	}
 	userName, ok := (*claims)["user_name"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid or missing 'user_name' claim")
 	}
-	userClaims.UserName = userName
 
 	roleName, ok := (*claims)["role_name"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid or missing 'role' claim")
 	}
-	userClaims.RoleName = roleName
 
 	roleIndex, ok := (*claims)["role_index"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("invalid or missing 'role_index' claim")
 	}
-	userClaims.RoleIndex = uint(roleIndex)
 
 	expiration, ok := (*claims)["exp"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("invalid or missing 'exp' claim")
 	}
-	userClaims.ExpirationDuration = expiration
 
-	return &userClaims, nil
+	isVerified, ok := (*claims)["is_verified"].(bool)
+	if !ok {
+		return nil, fmt.Errorf("invalid or missing 'is_verified' claim")
+	}
+
+	userClaims := NewUserClaims(uint(userID), userName, roleName, uint(roleIndex), expiration, isVerified)
+
+	return userClaims, nil
 }
 
 func (service *AuthService) DecodeJsonWebToken(rawToken string) (*jwt.Token, error) {
@@ -169,7 +189,7 @@ func (service *AuthService) VerifyPassword(password, hashedPassword string) erro
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
-func (service *AuthService) NewUser(name string, email string, password string, role *UserRole, platform *Platform) (*User, error) {
+func (service *AuthService) NewUser(name string, email string, password string, role *UserRole, platform *Platform, externalID *string) (*User, error) {
 
 	user := &User{
 		Name:       name,
@@ -178,6 +198,7 @@ func (service *AuthService) NewUser(name string, email string, password string, 
 		RoleID:     role.ID,
 		IsVerified: false,
 		Platform:   *platform,
+		ExternalID: externalID,
 	}
 
 	err := user.Validate()
@@ -187,7 +208,7 @@ func (service *AuthService) NewUser(name string, email string, password string, 
 	return user, nil
 }
 
-func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string, platformName string) (*User, error) {
+func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string, platformName string, externalID *string) (*User, error) {
 	existingUser, err := service.UserService.FindUserByEmail(ctx, email)
 	if err == nil {
 		log.Info().Msgf("User already exists: %v", existingUser)
@@ -207,7 +228,7 @@ func (service *AuthService) RegisterUser(ctx context.Context, name string, email
 		return nil, err
 	}
 
-	user, err := service.NewUser(name, email, hashedPassword, role, platform)
+	user, err := service.NewUser(name, email, hashedPassword, role, platform, externalID)
 	if err != nil {
 		return nil, err
 	}

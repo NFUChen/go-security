@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 	"go-security/security"
-	"gorm.io/gorm"
 	"net/mail"
+	"time"
 )
 
 type PostgresDataSourceConfig struct {
@@ -32,11 +32,14 @@ const (
 type RoleIndex uint
 
 type UserRole struct {
-	gorm.Model
-	ID        uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
 	Name      string `gorm:"type:varchar(50);not null" json:"name"`
 	RoleIndex uint   `gorm:"type:int;unique;not null" json:"role_index"`
 	Users     []User `gorm:"foreignKey:RoleID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"users"`
+
+	ID        uint       `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 var BuiltinRoles = []UserRole{
@@ -47,8 +50,6 @@ var BuiltinRoles = []UserRole{
 }
 
 type User struct {
-	gorm.Model
-	ID         uint     `gorm:"primaryKey" json:"id"` // Auto-increment primary key
 	Name       string   `gorm:"type:varchar(100);not null" json:"name"`
 	Email      string   `gorm:"type:varchar(100);unique;not null" json:"email"`
 	Password   string   `gorm:"type:varchar(255);not null" json:"-"` // Excluded from JSON responses
@@ -57,12 +58,21 @@ type User struct {
 	Role       UserRole `gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
 	PlatformID uint     `gorm:"not null" json:"platform_id"` // Foreign key
 	Platform   Platform `gorm:"foreignKey:PlatformID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"platform"`
-	ExternalID string   `gorm:"type:varchar(100);unique" json:"external_id"`
+	ExternalID *string  `gorm:"type:varchar(100);unique" json:"external_id"`
+
+	ID        uint       `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 type Platform struct {
-	ID   uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
 	Name string `gorm:"type:varchar(100);not null;unique" json:"name"`
+
+	ID        uint       `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 func (user *User) Validate() error {

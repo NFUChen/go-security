@@ -26,7 +26,7 @@ type SmtpConfig struct {
 	CompanyName    string `yaml:"company_name"`
 	Host           string `yaml:"host"`
 	Port           int    `yaml:"port"`
-	Sender         string `yaml:"sender"`
+	SenderEmail    string `yaml:"sender_email"`
 	SenderPassword string `yaml:"sender_password" json:"-"`
 }
 
@@ -49,7 +49,7 @@ func NewSmtpService(ctx context.Context, config *SmtpConfig) *SmtpService {
 	dialer := gomail.NewDialer(
 		config.Host,
 		config.Port,
-		config.Sender,
+		config.SenderEmail,
 		config.SenderPassword,
 	)
 
@@ -69,7 +69,7 @@ func NewSmtpService(ctx context.Context, config *SmtpConfig) *SmtpService {
 
 func (service *SmtpService) CreateNewMessage(to string, subject string, body string, contentType ContentType, attachments ...*os.File) *gomail.Message {
 	message := gomail.NewMessage()
-	message.SetHeader("From", service.SmtpConfig.Sender)
+	message.SetHeader("From", service.SmtpConfig.SenderEmail)
 	message.SetHeader("To", to)
 	message.SetHeader("Subject", subject)
 	message.SetBody(string(contentType), body)

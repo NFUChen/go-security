@@ -11,7 +11,7 @@ import (
 )
 
 type UserVerificationClaims struct {
-	UserID             uint    `json:"user_id"`
+	ID                 uint    `json:"id"`
 	ExpirationDuration float64 `json:"exp"`
 }
 
@@ -34,7 +34,7 @@ func (service *UserVerificationService) IssueVerificationToken(ctx context.Conte
 
 	claims := jwt.MapClaims{
 		"purpose": string(PurposeGuestEmailVerification),
-		"user_id": user.ID,
+		"id":      user.ID,
 		"exp":     time.Now().Add(time.Minute * 5).Unix(),
 	}
 
@@ -49,7 +49,7 @@ func (service *UserVerificationService) SendVerificationEmail(ctx context.Contex
 		return err
 	}
 
-	user, err := service.UserService.FindUserByID(ctx, claims.UserID)
+	user, err := service.UserService.FindUserByID(ctx, claims.ID)
 	if err != nil {
 		return err
 	}
@@ -95,11 +95,11 @@ func (service *UserVerificationService) extractVerificationClaims(claims *jwt.Ma
 	if !ok || purpose != string(PurposeGuestEmailVerification) {
 		return nil, fmt.Errorf("invalid or missing 'purpose' claim, getting %s, expects %v", purpose, PurposeGuestEmailVerification)
 	}
-	userID, ok := (*claims)["user_id"].(float64)
+	userID, ok := (*claims)["id"].(float64)
 	if !ok {
 		return nil, security.TokenInvalid
 	}
-	verificationClaims.UserID = uint(userID)
+	verificationClaims.ID = uint(userID)
 	exp, ok := (*claims)["exp"].(float64)
 	if !ok {
 		return nil, security.TokenInvalid
@@ -114,10 +114,10 @@ func (service *UserVerificationService) VerifyEmail(token string, otpCode string
 		return err
 	}
 
-	if err := service.OtpService.VerifyOtp(claims.UserID, PurposeGuestEmailVerification, otpCode); err != nil {
+	if err := service.OtpService.VerifyOtp(claims.ID, PurposeGuestEmailVerification, otpCode); err != nil {
 		return err
 	}
-	user, err := service.UserService.FindUserByID(context.Background(), claims.UserID)
+	user, err := service.UserService.FindUserByID(context.Background(), claims.ID)
 
 	return service.UserService.ActivateUser(context.Background(), user)
 }

@@ -35,7 +35,7 @@ func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engin
 	baseRouterGroup := engine.Group("/api")
 
 	mainController := controller.NewMainController(engine)
-	authController := controller.NewAuthController(baseRouterGroup, authService, userService, verificationService, resetPasswordService)
+	authController := controller.NewAuthController(baseRouterGroup, authService, userService, verificationService, resetPasswordService, config.Security.AuthRedirectUrl)
 	userController := controller.NewUserController(baseRouterGroup, userService, resetPasswordService, verificationService)
 	googleAuthController := controller.NewGoogleAuthController(baseRouterGroup, googleAuthService, config.Security.AuthRedirectUrl)
 	controllers := []controller.Controller{
@@ -50,6 +50,7 @@ func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engin
 		web.ErrorMiddlewareFunc,
 		authMiddleware.AuthMiddlewareFunc,
 		web.CORSMiddlewareFunc,
+		web.RequestLoggerMiddleware,
 	}
 
 	engine.Use(middlewares...)

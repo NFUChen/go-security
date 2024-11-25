@@ -8,6 +8,7 @@ import (
 )
 
 type AuthController struct {
+	RedirectURL              string
 	AuthService              *service.AuthService
 	UserResetPasswordService *service.UserResetPasswordService
 	UserVerificationService  *service.UserVerificationService
@@ -27,29 +28,42 @@ func (controller *AuthController) RegisterRoutes() {
 	controller.Router.POST("/public/send-reset-password-email", controller.SendResetPasswordEmail)
 	controller.Router.POST("/public/reset-password", controller.ResetPassword)
 
-	controller.Router.POST("/private/issue-verification-token", controller.IssueVerificationToken)
-	controller.Router.POST("/public/send-verification-email", controller.SendVerificationEmail)
-	controller.Router.POST("/public/verify-email", controller.VerifyEmail)
+	controller.Router.GET("/private/issue-verification-token", controller.IssueVerificationToken)
+	controller.Router.POST("/private/send-verification-email", controller.SendVerificationEmail)
+	controller.Router.POST("/private/verify-email", controller.VerifyEmail)
 
 	controller.Router.GET("/private/logout", controller.Logout)
+	controller.Router.GET("/private/redirect-url", controller.GetRedirectURL)
+}
+
+func (controller *AuthController) GetRedirectURL(ctx echo.Context) error {
+	return ctx.JSON(http.StatusOK, map[string]string{"redirectURL": controller.RedirectURL})
 }
 
 func (controller *AuthController) GetUser(ctx echo.Context) error {
 	userClaims, err := extractUserClaims(ctx)
 	if err != nil {
+		writeCookie(&ctx, CookieName, "", -1*time.Hour)
 		return err
 	}
 
 	return ctx.JSON(http.StatusOK, userClaims)
 }
 
-func NewAuthController(routerGroup *echo.Group, authService *service.AuthService, userService *service.UserService, verificationService *service.UserVerificationService, resetPasswordService *service.UserResetPasswordService) *AuthController {
+func NewAuthController(
+	routerGroup *echo.Group,
+	authService *service.AuthService,
+	userService *service.UserService,
+	verificationService *service.UserVerificationService,
+	resetPasswordService *service.UserResetPasswordService,
+	redirectURL string) *AuthController {
 	return &AuthController{
 		AuthService:              authService,
 		UserService:              userService,
 		Router:                   routerGroup,
 		UserResetPasswordService: resetPasswordService,
 		UserVerificationService:  verificationService,
+		RedirectURL:              redirectURL,
 	}
 }
 
@@ -62,7 +76,7 @@ func (controller *AuthController) RegisterUser(ctx echo.Context) error {
 	if err := ctx.Bind(&user); err != nil {
 		return err
 	}
-	registeredUser, err := controller.AuthService.RegisterUser(ctx.Request().Context(), user.UserName, user.Email, user.Password, controller.AuthService.SelfPlatForm.Name)
+	registeredUser, err := controller.AuthService.RegisterUser(ctx.Request().Context(), user.UserName, user.Email, user.Password, controller.AuthService.SelfPlatForm.Name, nil)
 	if err != nil {
 		return err
 	}
@@ -84,12 +98,12 @@ func (controller *AuthController) Login(ctx echo.Context) error {
 		return err
 	}
 	writeCookie(&ctx, CookieName, token, 24*time.Hour)
-	return ctx.String(http.StatusOK, "Login successfully")
+	return ctx.JSON(http.StatusOK, map[string]string{"redirectURL": controller.RedirectURL})
 }
 
 func (controller *AuthController) Logout(ctx echo.Context) error {
 	writeCookie(&ctx, CookieName, "", -1*time.Hour)
-	return ctx.String(http.StatusOK, "Logout successfully")
+	return ctx.NoContent(http.StatusOK)
 }
 
 // can be also used for resending.
@@ -128,7 +142,7 @@ func (controller *AuthController) ResetPassword(ctx echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.String(http.StatusOK, "Password reset successfully")
+	return ctx.JSON(http.StatusOK, map[string]string{"message": "Password has been reset"})
 }
 
 func (controller *AuthController) IssueVerificationToken(ctx echo.Context) error {
@@ -137,7 +151,7 @@ func (controller *AuthController) IssueVerificationToken(ctx echo.Context) error
 	if err != nil {
 		return err
 	}
-	token, err := controller.UserVerificationService.IssueVerificationToken(ctx.Request().Context(), userClaims.UserID)
+	token, err := controller.UserVerificationService.IssueVerificationToken(ctx.Request().Context(), userClaims.ID)
 	if err != nil {
 		return err
 	}
@@ -174,15 +188,15 @@ func (controller *AuthController) SendVerificationEmail(ctx echo.Context) error 
 
 func (controller *AuthController) VerifyEmail(ctx echo.Context) error {
 	var verificationSchema struct {
-		Token   string `json:"token"`
-		OtpCode string `json:"otp_code"`
+		Token string `json:"token"`
+		Otp   string `json:"otp"`
 	}
 	if err := ctx.Bind(&verificationSchema); err != nil {
 		return err
 	}
-	err := controller.UserVerificationService.VerifyEmail(verificationSchema.Token, verificationSchema.OtpCode)
+	err := controller.UserVerificationService.VerifyEmail(verificationSchema.Token, verificationSchema.Otp)
 	if err != nil {
 		return err
 	}
-	return ctx.String(http.StatusOK, "Email verified successfully")
+	return ctx.NoContent(http.StatusOK)
 }

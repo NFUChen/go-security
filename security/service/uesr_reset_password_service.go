@@ -12,7 +12,7 @@ import (
 )
 
 type ResetPasswordClaims struct {
-	UserID             uint    `json:"user_id"`
+	ID                 uint    `json:"id"`
 	ExpirationDuration float64 `json:"exp"`
 }
 
@@ -64,15 +64,15 @@ func (service *UserResetPasswordService) extractResetPasswordClaims(claims *jwt.
 	if !ok || purpose != string(PurposeResetPassword) {
 		return nil, fmt.Errorf("invalid or missing 'purpose' claim, getting %s, expects %v", purpose, PurposeResetPassword)
 	}
-	userID, ok := (*claims)["user_id"].(float64)
+	userID, ok := (*claims)["id"].(float64)
 	if !ok {
-		return nil, fmt.Errorf("invalid or missing 'user_id' claim")
+		return nil, fmt.Errorf("invalid or missing 'id' claim")
 	}
 	expiration, ok := (*claims)["exp"].(float64)
 	if !ok {
 		return nil, fmt.Errorf("invalid or missing 'exp' claim")
 	}
-	resetPasswordClaims.UserID = uint(userID)
+	resetPasswordClaims.ID = uint(userID)
 	resetPasswordClaims.ExpirationDuration = expiration
 	return &resetPasswordClaims, nil
 }
@@ -105,14 +105,14 @@ func (service *UserResetPasswordService) ResetPassword(ctx context.Context, toke
 
 	log.Info().Msgf("Claims: %v", claims)
 	log.Info().Msgf("Begin to verify OTP: %v", otpCode)
-	if err := service.OtpService.VerifyOtp(claims.UserID, PurposeResetPassword, otpCode); err != nil {
+	if err := service.OtpService.VerifyOtp(claims.ID, PurposeResetPassword, otpCode); err != nil {
 		return err
 	}
 
 	if err := claims.Validate(); err != nil {
 		return err
 	}
-	return service.doResetPassword(ctx, claims.UserID, newPassword)
+	return service.doResetPassword(ctx, claims.ID, newPassword)
 }
 
 func (service *UserResetPasswordService) IssueResetPasswordToken(ctx context.Context, email string) (string, error) {
@@ -123,7 +123,7 @@ func (service *UserResetPasswordService) IssueResetPasswordToken(ctx context.Con
 
 	claims := jwt.MapClaims{
 		"purpose": string(PurposeResetPassword),
-		"user_id": user.ID,
+		"id":      user.ID,
 		"exp":     time.Now().Add(10 * time.Minute).Unix(),
 	}
 	return service.AuthService.IssueJsonWebToken(&claims), nil
@@ -136,12 +136,12 @@ func (service *UserResetPasswordService) SendResetPasswordEmail(token string) (s
 		return "", err
 	}
 
-	user, err := service.UserService.FindUserByID(context.Background(), claims.UserID)
+	user, err := service.UserService.FindUserByID(context.Background(), claims.ID)
 	if err != nil {
 		return "", err
 	}
 
-	otp := service.OtpService.GenerateOtp(claims.UserID, PurposeResetPassword)
+	otp := service.OtpService.GenerateOtp(claims.ID, PurposeResetPassword)
 
 	subject := "Reset Password"
 	_template, err := template.New("reset_password_email").Parse(RESET_PASSWORD_EMAIL_HTML_TEMPLATE)
