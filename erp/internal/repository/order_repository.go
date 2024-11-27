@@ -18,13 +18,17 @@ type OrderRepository struct {
 }
 
 func (repo *OrderRepository) FindOrderByID(ctx context.Context, orderID uint) (*CustomerOrder, error) {
-	//TODO implement me
-	panic("implement me")
+	order := CustomerOrder{}
+	tx := repo.Engine.WithContext(ctx).Where("id = ?", orderID).First(&order)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return &order, nil
 }
 
 func (repo *OrderRepository) UpdateOrderState(ctx context.Context, orderID uint, state OrderState) error {
-	//TODO implement me
-	panic("implement me")
+	tx := repo.Engine.WithContext(ctx).Model(&CustomerOrder{}).Where("id = ?", orderID).Update("state", state)
+	return tx.Error
 }
 
 func NewOrderRepository(engine *gorm.DB) *OrderRepository {

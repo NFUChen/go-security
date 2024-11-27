@@ -62,12 +62,12 @@ func (service LineService) Name() string {
 	return "LineService"
 }
 
-func (service LineService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *CustomerProfile) error {
+func (service LineService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (service LineService) SendOrderApprovedMessage(order *CustomerOrder, profile *CustomerProfile) error {
+func (service LineService) SendOrderApprovedMessage(order *CustomerOrder, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 }

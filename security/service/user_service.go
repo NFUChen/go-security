@@ -7,15 +7,31 @@ import (
 )
 
 const (
-	PlatformSelf   string = "Self"
-	PlatformGoogle string = "Google"
-	PlatformLine   string = "LINE"
+	RoleSuperAdmin  string = "super_admin"
+	RoleAdmin       string = "admin"
+	RoleGuest       string = "guest"
+	RoleBlockedUser string = "blocked_user"
+)
+
+var BuiltinRoles = []UserRole{
+	{Name: RoleSuperAdmin, RoleIndex: 1000},
+	{Name: RoleAdmin, RoleIndex: 500},
+	{Name: RoleGuest, RoleIndex: 1},
+	{Name: RoleBlockedUser, RoleIndex: 0},
+}
+
+type PlatformType string
+
+const (
+	PlatformSelf   PlatformType = "Self"
+	PlatformGoogle PlatformType = "Google"
+	PlatformLine   PlatformType = "LINE"
 )
 
 var BuiltinPlatforms = []Platform{
-	{Name: PlatformSelf},
-	{Name: PlatformGoogle},
-	{Name: PlatformLine},
+	{Name: string(PlatformSelf)},
+	{Name: string(PlatformGoogle)},
+	{Name: string(PlatformLine)},
 }
 
 type UserService struct {
@@ -25,6 +41,15 @@ type UserService struct {
 func (service *UserService) PostConstruct() {
 	service.addBuiltinRoles()
 	service.addBuiltinPlatforms()
+}
+
+func (service *UserService) GetUserPlatform(ctx context.Context, userID uint) (*Platform, error) {
+	user, err := service.UserRepository.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return service.UserRepository.FindPlatformByID(ctx, user.PlatformID)
 }
 
 func (service *UserService) addBuiltinPlatforms() {
@@ -63,11 +88,11 @@ func (service *UserService) FindRoleByName(ctx context.Context, name string) (*U
 	}
 	return service.UserRepository.FindRoleByName(ctx, name)
 }
-func (service *UserService) FindPlatformByName(ctx context.Context, name string) (*Platform, error) {
+func (service *UserService) FindPlatformByName(ctx context.Context, name PlatformType) (*Platform, error) {
 	if len(name) == 0 {
 		return nil, security.UserPlatformEmpty
 	}
-	return service.UserRepository.FindPlatformByName(ctx, name)
+	return service.UserRepository.FindPlatformByName(ctx, string(name))
 }
 
 func (service *UserService) FindAllUsers(ctx context.Context) ([]*User, error) {

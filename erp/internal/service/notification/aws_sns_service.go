@@ -14,12 +14,12 @@ func (service *AwsSnsService) Name() string {
 	return "AwsSnsService"
 }
 
-func (service *AwsSnsService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *CustomerProfile) error {
+func (service *AwsSnsService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (service *AwsSnsService) SendOrderApprovedMessage(order *CustomerOrder, profile *CustomerProfile) error {
+func (service *AwsSnsService) SendOrderApprovedMessage(order *CustomerOrder, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 }

@@ -171,3 +171,81 @@ const EMAIL_VERIFICATION_HTML_TEMPLATE = `
 </body>
 </html>
 `
+
+const INVITATION_EMAIL_HTML_TEMPLATE = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitation to Join</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a; /* Dark background */
+            color: #e0e0e0; /* Light text */
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #2a2a2a; /* Dark card background */
+            padding: 20px;
+            border: 1px solid #444; /* Dark border */
+            border-radius: 0.5rem; /* Rounded corners */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #ffffff; /* White text for heading */
+            font-size: 24px;
+            text-align: center;
+        }
+
+        p {
+            line-height: 1.6;
+            font-size: 16px;
+            color: #b0b0b0; /* Muted text */
+        }
+
+        .invite-link {
+            font-size: 18px;
+            color: #ffcc00; /* Bright accent color */
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+            background-color: #333; /* Dark button-like background */
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .footer {
+            font-size: 12px;
+            color: #888; /* Muted footer text */
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to {{.CompanyName}}</h1>
+        <p>Hello, {{.UserName}}</p>
+        <p>We're excited to have you join our platform! To get started, please click the link below to complete your registration:</p>
+        
+        <a href="{{.InviteLink}}" class="invite-link">Complete Your Registration</a>
+        
+        <p>If you have any questions, feel free to contact our support team.</p>
+        <p>Thanks,<br>The {{.CompanyName}} Team</p>
+        
+        <div class="footer">
+            <p>If you did not request this invitation, please ignore this email.</p>
+        </div>
+    </div>
+</body>
+</html>`

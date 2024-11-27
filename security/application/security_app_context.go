@@ -26,18 +26,18 @@ func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engin
 	authService := service.NewAuthService(userService, config.Security.Secret)
 	authMiddleware := web.NewAuthMiddleware(authService, config.Security.ExcludedRoutePrefixes)
 	log.Info().Msgf("Security excluded routes: %v", config.Security.ExcludedRoutePrefixes)
-	smtpService := service.NewSmtpService(ctx, &config.Smtp)
+	smtpService := service.NewSmtpService(ctx, config.Smtp)
 	resetPasswordService := service.NewUserResetPasswordService(smtpService, userService, authService, otpService)
 	verificationService := service.NewUserVerificationService(smtpService, userService, authService, otpService)
 
-	googleAuthService := oauth.NewGoogleAuthService(&config.GoogleAuthConfig, authService, userService)
+	googleAuthService := oauth.NewGoogleAuthService(config.GoogleAuthConfig, authService, userService)
 
 	baseRouterGroup := engine.Group("/api")
 
 	mainController := controller.NewMainController(engine)
-	authController := controller.NewAuthController(baseRouterGroup, authService, userService, verificationService, resetPasswordService, config.Security.AuthRedirectUrl)
+	authController := controller.NewAuthController(baseRouterGroup, authService, resetPasswordService, verificationService, userService, config.Security)
 	userController := controller.NewUserController(baseRouterGroup, userService, resetPasswordService, verificationService)
-	googleAuthController := controller.NewGoogleAuthController(baseRouterGroup, googleAuthService, config.Security.AuthRedirectUrl)
+	googleAuthController := controller.NewGoogleAuthController(baseRouterGroup, googleAuthService, config.Security)
 	controllers := []controller.Controller{
 		mainController,
 		authController,

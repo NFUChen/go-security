@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func writeCookie(c *echo.Context, key string, value string, duration time.Duration) {
+func WriteCookie(c *echo.Context, key string, value string, duration time.Duration) {
 	cookie := new(http.Cookie)
 	cookie.Name = key
 	cookie.Value = value
@@ -17,7 +17,7 @@ func writeCookie(c *echo.Context, key string, value string, duration time.Durati
 	(*c).SetCookie(cookie)
 }
 
-func extractUserClaims(ctx echo.Context) (*service.UserClaims, error) {
+func ExtractUserClaims(ctx echo.Context) (*service.UserClaims, error) {
 	user := ctx.Get("user")
 	claims, ok := user.(*service.UserClaims)
 	if !ok {

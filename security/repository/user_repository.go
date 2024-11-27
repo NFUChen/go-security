@@ -14,7 +14,8 @@ type IUserRepository interface {
 	FindByUserName(ctx context.Context, name string) (*User, error)
 	AddRole(ctx context.Context, role *UserRole) error
 	AddPlatform(ctx context.Context, platform *Platform) error
-	FindPlatformByName(ctx context.Context, name string) (*Platform, error)
+	FindPlatformByName(ctx context.Context, platformName string) (*Platform, error)
+	FindPlatformByID(ctx context.Context, platformID uint) (*Platform, error)
 	FindAllRoles(ctx context.Context) ([]*UserRole, error)
 	FindRoleByName(ctx context.Context, name string) (*UserRole, error)
 	UpdateUserPassword(ctx context.Context, user *User, password string) error
@@ -25,9 +26,15 @@ type UserRepository struct {
 	Engine *gorm.DB
 }
 
-func (repo *UserRepository) FindPlatformByName(ctx context.Context, name string) (*Platform, error) {
+func (repo *UserRepository) FindPlatformByID(ctx context.Context, platformID uint) (*Platform, error) {
 	var platform Platform
-	err := repo.Engine.WithContext(ctx).First(&platform, "name = ?", name).Error
+	err := repo.Engine.WithContext(ctx).First(&platform, platformID).Error
+	return &platform, err
+}
+
+func (repo *UserRepository) FindPlatformByName(ctx context.Context, platformName string) (*Platform, error) {
+	var platform Platform
+	err := repo.Engine.WithContext(ctx).First(&platform, "name = ?", platformName).Error
 	return &platform, err
 }
 
@@ -55,33 +62,31 @@ func (repo *UserRepository) FindRoleByName(ctx context.Context, name string) (*U
 	return &role, err
 }
 
+func (repo *UserRepository) createPreloadTx(ctx context.Context) *gorm.DB {
+	return repo.Engine.WithContext(ctx).Preload("Platform").Preload("Role")
+}
+
 func (repo *UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	var user User
-	tx := repo.Engine.WithContext(ctx).Preload("Role").First(&user, "email = ?", email)
+	tx := repo.createPreloadTx(ctx).First(&user, "email = ?", email)
 	return &user, tx.Error
 }
 
 func (repo *UserRepository) FindByUserName(ctx context.Context, name string) (*User, error) {
 	var user User
-	tx := repo.Engine.WithContext(ctx).Preload("Role").First(&user, "name = ?", name)
+	tx := repo.createPreloadTx(ctx).First(&user, "name = ?", name)
 	return &user, tx.Error
-}
-
-func NewUserRepository(engine *gorm.DB) *UserRepository {
-	return &UserRepository{
-		Engine: engine,
-	}
 }
 
 func (repo *UserRepository) FindAll(ctx context.Context) ([]*User, error) {
 	var users []*User
-	err := repo.Engine.WithContext(ctx).Find(&users).Error
+	err := repo.createPreloadTx(ctx).Find(&users).Error
 	return users, err
 }
 
 func (repo *UserRepository) FindByID(ctx context.Context, id uint) (*User, error) {
 	var user User
-	err := repo.Engine.WithContext(ctx).First(&user, id).Error
+	err := repo.createPreloadTx(ctx).First(&user, id).Error
 	return &user, err
 }
 
@@ -95,4 +100,10 @@ func (repo *UserRepository) DeleteByID(ctx context.Context, id uint) error {
 
 func (repo *UserRepository) UpdateUserPassword(ctx context.Context, user *User, password string) error {
 	return repo.Engine.WithContext(ctx).Model(user).Update("password", password).Error
+}
+
+func NewUserRepository(engine *gorm.DB) *UserRepository {
+	return &UserRepository{
+		Engine: engine,
+	}
 }

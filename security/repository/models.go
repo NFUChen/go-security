@@ -22,13 +22,6 @@ func (config *PostgresDataSourceConfig) AsDSN() string {
 	)
 }
 
-const (
-	RoleSuperAdmin  string = "super_admin"
-	RoleAdmin       string = "admin"
-	RoleGuest       string = "guest"
-	RoleBlockedUser string = "blocked_user"
-)
-
 type RoleIndex uint
 
 type UserRole struct {
@@ -42,20 +35,13 @@ type UserRole struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
-var BuiltinRoles = []UserRole{
-	{Name: RoleSuperAdmin, RoleIndex: 1000},
-	{Name: RoleAdmin, RoleIndex: 500},
-	{Name: RoleGuest, RoleIndex: 1},
-	{Name: RoleBlockedUser, RoleIndex: 0},
-}
-
 type User struct {
 	Name       string   `gorm:"type:varchar(100);not null" json:"name"`
 	Email      string   `gorm:"type:varchar(100);unique;not null" json:"email"`
 	Password   string   `gorm:"type:varchar(255);not null" json:"-"` // Excluded from JSON responses
 	RoleID     uint     `gorm:"not null" json:"role_id"`             // Foreign key
 	IsVerified bool     `gorm:"default:false" json:"is_verified"`
-	Role       UserRole `gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
+	Role       UserRole `gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"role"`
 	PlatformID uint     `gorm:"not null" json:"platform_id"` // Foreign key
 	Platform   Platform `gorm:"foreignKey:PlatformID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"platform"`
 	ExternalID *string  `gorm:"type:varchar(100);unique" json:"external_id"`

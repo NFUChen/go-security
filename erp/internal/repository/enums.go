@@ -6,11 +6,10 @@ const (
 	OrderStatePending  OrderState = "Pending"
 	OrderStateApproved OrderState = "Approved"
 
-	OrderStateCanceled OrderState = "Canceled"
-
-	OrderStatePaid    OrderState = "Paid"
-	OrderStateUnpaid  OrderState = "Unpaid"
-	OrderStateShipped OrderState = "Shipped"
+	OrderStateCanceled          OrderState = "Canceled"
+	OrderStateWaitingForPayment OrderState = "WaitingForPayment"
+	OrderStatePaid              OrderState = "Paid"
+	OrderStateShipped           OrderState = "Shipped"
 )
 
 type NotificationApproach string

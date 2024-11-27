@@ -8,12 +8,23 @@ import (
 )
 
 type AuthController struct {
-	RedirectURL              string
+	Router                   *echo.Group
+	SecurityConfig           *service.SecurityConfig
 	AuthService              *service.AuthService
 	UserResetPasswordService *service.UserResetPasswordService
 	UserVerificationService  *service.UserVerificationService
 	UserService              *service.UserService
-	Router                   *echo.Group
+}
+
+func NewAuthController(routerGroup *echo.Group, authService *service.AuthService, userResetPasswordService *service.UserResetPasswordService, userVerificationService *service.UserVerificationService, userService *service.UserService, securityConfig *service.SecurityConfig) *AuthController {
+	return &AuthController{
+		Router:                   routerGroup,
+		AuthService:              authService,
+		UserResetPasswordService: userResetPasswordService,
+		UserVerificationService:  userVerificationService,
+		UserService:              userService,
+		SecurityConfig:           securityConfig,
+	}
 }
 
 const (
@@ -37,34 +48,26 @@ func (controller *AuthController) RegisterRoutes() {
 }
 
 func (controller *AuthController) GetRedirectURL(ctx echo.Context) error {
-	return ctx.JSON(http.StatusOK, map[string]string{"redirectURL": controller.RedirectURL})
+	user, _ := ExtractUserClaims(ctx)
+	isAdmin := controller.AuthService.IsUserAdmin(user.RoleName)
+	var redirectUrl string
+	if isAdmin {
+		redirectUrl = controller.SecurityConfig.AdminRedirectUrl
+	} else {
+		redirectUrl = controller.SecurityConfig.ClientRedirectUrl
+	}
+
+	return ctx.JSON(http.StatusOK, map[string]string{"redirectURL": redirectUrl})
 }
 
 func (controller *AuthController) GetUser(ctx echo.Context) error {
-	userClaims, err := extractUserClaims(ctx)
+	userClaims, err := ExtractUserClaims(ctx)
 	if err != nil {
-		writeCookie(&ctx, CookieName, "", -1*time.Hour)
+		WriteCookie(&ctx, CookieName, "", -1*time.Hour)
 		return err
 	}
 
 	return ctx.JSON(http.StatusOK, userClaims)
-}
-
-func NewAuthController(
-	routerGroup *echo.Group,
-	authService *service.AuthService,
-	userService *service.UserService,
-	verificationService *service.UserVerificationService,
-	resetPasswordService *service.UserResetPasswordService,
-	redirectURL string) *AuthController {
-	return &AuthController{
-		AuthService:              authService,
-		UserService:              userService,
-		Router:                   routerGroup,
-		UserResetPasswordService: resetPasswordService,
-		UserVerificationService:  verificationService,
-		RedirectURL:              redirectURL,
-	}
 }
 
 func (controller *AuthController) RegisterUser(ctx echo.Context) error {
@@ -76,7 +79,8 @@ func (controller *AuthController) RegisterUser(ctx echo.Context) error {
 	if err := ctx.Bind(&user); err != nil {
 		return err
 	}
-	registeredUser, err := controller.AuthService.RegisterUser(ctx.Request().Context(), user.UserName, user.Email, user.Password, controller.AuthService.SelfPlatForm.Name, nil)
+
+	registeredUser, err := controller.AuthService.RegisterUserAsGuest(ctx.Request().Context(), user.UserName, user.Email, user.Password, service.PlatformSelf, nil)
 	if err != nil {
 		return err
 	}
@@ -97,12 +101,12 @@ func (controller *AuthController) Login(ctx echo.Context) error {
 	if err != nil {
 		return err
 	}
-	writeCookie(&ctx, CookieName, token, 24*time.Hour)
-	return ctx.JSON(http.StatusOK, map[string]string{"redirectURL": controller.RedirectURL})
+	WriteCookie(&ctx, CookieName, token, 24*time.Hour)
+	return ctx.NoContent(http.StatusOK)
 }
 
 func (controller *AuthController) Logout(ctx echo.Context) error {
-	writeCookie(&ctx, CookieName, "", -1*time.Hour)
+	WriteCookie(&ctx, CookieName, "", -1*time.Hour)
 	return ctx.NoContent(http.StatusOK)
 }
 
@@ -147,7 +151,7 @@ func (controller *AuthController) ResetPassword(ctx echo.Context) error {
 
 func (controller *AuthController) IssueVerificationToken(ctx echo.Context) error {
 	// for verification, we can assume that the user is already logged in, but the email is not verified
-	userClaims, err := extractUserClaims(ctx)
+	userClaims, err := ExtractUserClaims(ctx)
 	if err != nil {
 		return err
 	}
@@ -198,5 +202,5 @@ func (controller *AuthController) VerifyEmail(ctx echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.NoContent(http.StatusOK)
+	return ctx.JSON(http.StatusOK, map[string]string{"message": "Email has been verified"})
 }

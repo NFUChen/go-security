@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+type PricingPolicy struct {
+	ID          uint   `gorm:"primaryKey" json:"id"`
+	Name        string `gorm:"type:varchar(100);not null" json:"name"` // Policy name
+	Description string `gorm:"type:text" json:"description"`           // Optional description
+
+	PolicyPrices []PolicyPrice `gorm:"foreignKey:PolicyID" json:"policy_prices"` // Prices for specific products
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	DeletedAt    *time.Time    `json:"deleted_at"`
+}
+
+type PolicyPrice struct {
+	ID        uint       `gorm:"primaryKey" json:"id"`
+	PolicyID  uint       `gorm:"not null;uniqueIndex:policy_product_idx" json:"policy_id"`  // Foreign key linking to PricingPolicy
+	ProductID uint       `gorm:"not null;uniqueIndex:policy_product_idx" json:"product_id"` // Foreign key linking to Product
+	Product   Product    `gorm:"foreignKey:ProductID" json:"-"`                             // Product relationship
+	Price     int        `gorm:"type:int;not null" json:"price"`                            // Price for the product under this policy
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
+}
+
 type OrderNotification struct {
 	NotifiedOrderState OrderState `gorm:"not null"  json:"notified_order_state"`
 
@@ -16,25 +38,28 @@ type OrderNotification struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
-type CustomerProfile struct {
-	CustomerID             uint                   `gorm:"not null" json:"customer_id"`                                                                 // Foreign key linking to User.ID
-	Customer               User                   `gorm:"foreignKey:CustomerID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"` // Relationship to User
-	NotificationApproaches []NotificationApproach `gorm:"not null; type:json" json:"notification_approach"`
-	PhoneNumber            string                 `gorm:"type:varchar(20)" json:"phone_number"`   // for SMS
-	EmailAddress           string                 `gorm:"type:varchar(100)" json:"email_address"` // for Email
-	LineID                 string                 `gorm:"type:varchar(100)" json:"line_id"`       // for LINE
+type UserProfile struct {
+	ID     uint `gorm:"primaryKey" json:"id"`
+	UserID uint `gorm:"not null" json:"customer_id"` // Foreign key linking to User.ID
+	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
 
-	ID        uint       `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	NotificationApproaches []NotificationApproach `gorm:"not null; type:json" json:"notification_approach"`
+	PhoneNumber            string                 `gorm:"type:varchar(20)" json:"phone_number"` // for SMS
+	IsPhoneNumberVerified  bool                   `gorm:"default:false" json:"is_phone_number_verified"`
+
+	PricingPolicyID uint          `json:"pricing_policy_id"`                                 // Foreign key linking to PricingPolicy
+	PricingPolicy   PricingPolicy `gorm:"foreignKey:PricingPolicyID;" json:"pricing_policy"` // Many-to-many relationship
+
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 type CustomerOrder struct {
-	CustomerID uint       `gorm:"not null" json:"customer_id"` // Foreign key linking to User.ID
+	UserID     uint       `gorm:"not null" json:"user_id"` // Foreign key linking to User.ID
 	OrderState OrderState `gorm:"type:varchar(50); not null" json:"order_state"`
 	OrderDate  time.Time  `gorm:"type:date"`
-	Customer   User       `gorm:"foreignKey:CustomerID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"` // Relationship to User
+	User       User       `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"` // Relationship to User
 	Products   []Product  `gorm:"many2many:order_products;" json:"products"`
 
 	ID        uint       `gorm:"primaryKey" json:"id"` // Auto-increment primary key

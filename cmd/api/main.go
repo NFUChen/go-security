@@ -1,13 +1,17 @@
 package main
 
 import (
-	"go-security/internal/application"
+	erpApplication "go-security/erp/application"
+	"go-security/security/application"
 )
 
 func main() {
-	config := application.MustNewAppConfigFromFile("./config.yaml")
+
+	config := application.MustNewAppConfigFromFile("/Users/william_w_chen/Desktop/tofu-erp/cmd/api/config.yaml")
 	app := application.MustNewApplication(config)
 	context := application.MustNewSecurityApplicationContext(config, app.SqlEngine, app.Engine)
-	app.InjectContextCollection(context)
+	erpAppConfig := erpApplication.MustNewErpApplicationConfig("/Users/william_w_chen/Desktop/tofu-erp/cmd/api/erp.yaml")
+	erpContext := erpApplication.MustNewErpApplicationContext(erpAppConfig, app, context)
+	app.InjectContextCollection(context, erpContext)
 	app.Run()
 }

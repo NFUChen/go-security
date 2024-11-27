@@ -8,6 +8,7 @@ import (
 	"go-security/security"
 	. "go-security/security/repository"
 	"golang.org/x/crypto/bcrypt"
+	"slices"
 	"time"
 )
 
@@ -18,7 +19,8 @@ const (
 type SecurityConfig struct {
 	Secret                string   `yaml:"secret" json:"-"`
 	ExcludedRoutePrefixes []string `yaml:"excluded_routes_prefixes"`
-	AuthRedirectUrl       string   `yaml:"auth_redirect_url"`
+	AdminRedirectUrl      string   `yaml:"admin_redirect_url"`
+	ClientRedirectUrl     string   `yaml:"client_redirect_url"`
 }
 
 type UserClaims struct {
@@ -49,10 +51,8 @@ func (claims *UserClaims) Validate() error {
 }
 
 type AuthService struct {
-	Secret       string
-	UserService  *UserService
-	AllRoles     []*UserRole
-	SelfPlatForm *Platform
+	Secret      string
+	UserService *UserService
 }
 
 func NewAuthService(userService *UserService, secret string) *AuthService {
@@ -65,17 +65,7 @@ func NewAuthService(userService *UserService, secret string) *AuthService {
 }
 
 func (service *AuthService) PostConstruct() {
-	roles, err := service.UserService.FindAllRoles(context.Background())
-	if err != nil {
-		panic(err)
-	}
 
-	platform, err := service.UserService.FindPlatformByName(context.Background(), PlatformSelf)
-	if err != nil {
-		panic(err)
-	}
-	service.SelfPlatForm = platform
-	service.AllRoles = roles
 }
 
 func (service *AuthService) Login(ctx context.Context, email string, password string) (string, error) {
@@ -96,6 +86,15 @@ func (service *AuthService) IssueJsonWebToken(claims *jwt.MapClaims) string {
 	log.Info().Msgf("Issue Token: %v", tokenString)
 	return tokenString
 }
+
+func (service *AuthService) IsUserAdmin(userRoleName string) bool {
+	admins := []string{RoleSuperAdmin, RoleAdmin}
+	if slices.Contains(admins, userRoleName) {
+		return true
+	}
+	return false
+}
+
 func (service *AuthService) IssueLoginToken(user *User, expiration time.Duration) (string, error) {
 
 	claims := jwt.MapClaims{
@@ -145,19 +144,22 @@ func (service *AuthService) ExtractUserClaims(claims *jwt.MapClaims) (*UserClaim
 	return userClaims, nil
 }
 
-func (service *AuthService) DecodeJsonWebToken(rawToken string) (*jwt.Token, error) {
-	secretKey := []byte(service.Secret)
+func (service *AuthService) DecodeJsonWebTokenWithSecret(rawToken string, secret []byte) (*jwt.Token, error) {
 	token, err := jwt.Parse(rawToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return secretKey, nil
+		return secret, nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
 	return token, nil
+}
+
+func (service *AuthService) DecodeJsonWebToken(rawToken string) (*jwt.Token, error) {
+	return service.DecodeJsonWebTokenWithSecret(rawToken, []byte(service.Secret))
 }
 
 func (service *AuthService) ParseUserClaims(tokenString string) (*UserClaims, error) {
@@ -208,7 +210,11 @@ func (service *AuthService) NewUser(name string, email string, password string, 
 	return user, nil
 }
 
-func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string, platformName string, externalID *string) (*User, error) {
+func (service *AuthService) RegisterUserAsGuest(ctx context.Context, name string, email string, password string, platformName PlatformType, externalID *string) (*User, error) {
+	return service.RegisterUser(ctx, name, email, password, platformName, externalID, RoleGuest)
+}
+
+func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string, platformType PlatformType, externalID *string, userRole string) (*User, error) {
 	existingUser, err := service.UserService.FindUserByEmail(ctx, email)
 	if err == nil {
 		log.Info().Msgf("User already exists: %v", existingUser)
@@ -218,12 +224,12 @@ func (service *AuthService) RegisterUser(ctx context.Context, name string, email
 	if err != nil {
 		return nil, err
 	}
-	role, err := service.UserService.FindRoleByName(ctx, RoleGuest)
+	role, err := service.UserService.FindRoleByName(ctx, userRole)
 	if err != nil {
 		return nil, err
 	}
 
-	platform, err := service.UserService.FindPlatformByName(ctx, platformName)
+	platform, err := service.UserService.FindPlatformByName(ctx, platformType)
 	if err != nil {
 		return nil, err
 	}

@@ -10,11 +10,11 @@ import (
 )
 
 type Config struct {
-	Server             controller.ServerConfig             `yaml:"server"`
-	Security           service.SecurityConfig              `yaml:"security"`
-	PostgresDataSource repository.PostgresDataSourceConfig `yaml:"postgres_data_source"`
-	Smtp               service.SmtpConfig                  `yaml:"smtp"`
-	GoogleAuthConfig   oauth.GoogleAuthConfig              `yaml:"google_auth"`
+	Server             *controller.ServerConfig             `yaml:"server"`
+	Security           *service.SecurityConfig              `yaml:"security"`
+	PostgresDataSource *repository.PostgresDataSourceConfig `yaml:"postgres_data_source"`
+	Smtp               *service.SmtpConfig                  `yaml:"smtp"`
+	GoogleAuthConfig   *oauth.GoogleAuthConfig              `yaml:"google_auth"`
 }
 
 func (config *Config) AsJson() string {

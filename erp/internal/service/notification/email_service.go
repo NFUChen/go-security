@@ -13,17 +13,17 @@ func (service EmailService) Name() string {
 	return "EmailService"
 }
 
-func (service EmailService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *CustomerProfile) error {
+func (service EmailService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 
 }
 
-func (service EmailService) SendOrderApprovedMessage(order *CustomerOrder, profile *CustomerProfile) error {
+func (service EmailService) SendOrderApprovedMessage(order *CustomerOrder, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 }
 
 func NewEmailService(smtpService *service.SmtpService) *EmailService {
-	return &EmailService{smtpService}
+	return &EmailService{SmtpService: smtpService}
 }

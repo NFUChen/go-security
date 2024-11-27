@@ -7,27 +7,58 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/rs/zerolog/log"
-	"go-security/erp/internal/controller"
 	"go-security/erp/internal/repository"
 	appService "go-security/erp/internal/service"
 	"go-security/erp/internal/service/notification"
+	"go-security/erp/internal/web/controller"
 	. "go-security/security/application"
 	"go-security/security/service"
 	baseController "go-security/security/web/controller"
+	"reflect"
 )
 
-func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Application, baseContext *ApplicationContext) *ApplicationContext {
+type dependencies struct {
+	SmtpService *service.SmtpService
+	AuthService *service.AuthService
+	UserService *service.UserService
+}
+
+func extractDependencies(context *ApplicationContext) *dependencies {
 	var smtpService *service.SmtpService
-	for _, _service := range baseContext.Services {
+	var authService *service.AuthService
+	var userService *service.UserService
+	for _, _service := range context.Services {
 		serviceFound, ok := _service.(*service.SmtpService)
 		if ok {
 			smtpService = serviceFound
-			break
+		}
+		authServiceFound, ok := _service.(*service.AuthService)
+		if ok {
+			authService = authServiceFound
+		}
+		userServiceFound, ok := _service.(*service.UserService)
+		if ok {
+			userService = userServiceFound
 		}
 	}
-	if smtpService == nil {
-		log.Fatal().Msgf("Unable to find SMTP service in base context")
+	services := []service.IService{
+		smtpService, authService, userService,
 	}
+	for _, _service := range services {
+		if _service == nil {
+			log.Fatal().Msgf("Unable to find service: %v in base context", reflect.TypeOf(_service))
+		}
+	}
+
+	return &dependencies{
+		SmtpService: smtpService,
+		AuthService: authService,
+		UserService: userService,
+	}
+}
+
+func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Application, baseContext *ApplicationContext) *ApplicationContext {
+	appDeps := extractDependencies(baseContext)
 
 	awsConfig, err := config.LoadDefaultConfig(
 		context.TODO(),
@@ -52,16 +83,28 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 	}
 
 	orderRepo := repository.NewOrderRepository(baseApp.SqlEngine)
-	profileRepo := repository.NewProfileRepository()
+	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine)
+
 	profileService := appService.NewProfileService(profileRepo)
-	emailService := notification.NewEmailService(smtpService)
+	emailService := notification.NewEmailService(appDeps.SmtpService)
 	lineService := notification.NewLineService()
+
 	_ = appService.NewOrderService(orderRepo, profileService, emailService, snsService, lineService)
 	router := baseApp.Engine.Group("/erp-api")
-	lineController := controller.NewLineController(router, appConfig.Line.ChannelSecret, lineService)
+	profileController := controller.NewProfileController(router, appDeps.UserService, profileService)
+	lineLoginService := appService.NewLineLoginService(appDeps.AuthService, appDeps.UserService, appConfig.Line)
+	lineController := controller.NewLineController(
+		router,
+		appDeps.AuthService,
+		lineLoginService,
+		lineService,
+		baseApp.AppConfig.Security,
+		appConfig.Line.ChannelSecret,
+	)
 
 	controllers := []baseController.Controller{
 		lineController,
+		profileController,
 	}
 
 	return &ApplicationContext{

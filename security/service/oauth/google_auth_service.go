@@ -57,7 +57,7 @@ func NewGoogleAuthService(authConfig *GoogleAuthConfig, authService *AuthService
 func (service *GoogleAuthService) RegisterAndLogin(ctx context.Context, user *GoogleUser) (string, error) {
 	targetUser, err := service.UserService.FindUserByEmail(ctx, user.Email)
 	if targetUser == nil && errors.Is(err, security.UserNotFound) {
-		targetUser, err = service.AuthService.RegisterUser(ctx, user.FullName(), user.Email, user.SubjectIdentifier, PlatformGoogle, &user.SubjectIdentifier)
+		targetUser, err = service.AuthService.RegisterUserAsGuest(ctx, user.FullName(), user.Email, user.SubjectIdentifier, PlatformGoogle, &user.SubjectIdentifier)
 		if err != nil {
 			return "", err
 		}

@@ -46,7 +46,7 @@ func (service *OrderService) AllOrderStates() []OrderState {
 		OrderStatePending,
 		OrderStateApproved,
 		OrderStatePaid,
-		OrderStateUnpaid,
+		OrderStateWaitingForPayment,
 		OrderStateShipped,
 		OrderStateCanceled,
 	}
@@ -56,24 +56,28 @@ func (service *OrderService) FindOrdersByCustomerIDAndDate(ctx context.Context, 
 	return service.OrderRepository.FindOrdersByCustomerIDAndDate(ctx, customerID, datetime)
 }
 
-func (service *OrderService) PlaceOrder(ctx context.Context, customer *User) error {
+func (service *OrderService) SetOrderState(ctx context.Context, orderID uint, state OrderState) error {
+	return service.OrderRepository.UpdateOrderState(ctx, orderID, state)
+}
+
+func (service *OrderService) PlaceOrder(ctx context.Context, user *User) error {
 	newOrder := &CustomerOrder{
-		CustomerID: customer.ID,
+		UserID:     user.ID,
 		OrderState: OrderStatePending,
 		OrderDate:  time.Now(),
 	}
 	if err := service.OrderRepository.CreateOrder(ctx, newOrder); err != nil {
 		return err
 	}
+	// TODO: Notification should be sent to the customer, either by email, SMS, or Line message, (clicked by admin or triggered by system)
+	//profile, err := service.ProfileService.FindProfileByUserId(customer.ID)
+	//if err != nil {
+	//	return err
+	//}
 
-	profile, err := service.ProfileService.FindProfileByCustomerId(customer.ID)
-	if err != nil {
-		return err
-	}
-
-	if err := service.sendNotifications(newOrder, profile, NotificationWaitingForApproval); err != nil {
-		return err
-	}
+	//if err := service.sendNotifications(newOrder, profile, NotificationWaitingForApproval); err != nil {
+	//	return err
+	//}
 
 	return nil
 }
@@ -90,14 +94,15 @@ func (service *OrderService) ApproveOrder(ctx context.Context, orderID uint) err
 	if err := service.OrderRepository.UpdateOrderState(ctx, order.ID, OrderStateApproved); err != nil {
 		return err
 	}
-	profile, err := service.ProfileService.FindProfileByCustomerId(order.CustomerID)
-	if err != nil {
-		return err
-	}
 
-	if err := service.sendNotifications(order, profile, NotificationApproved); err != nil {
-		return err
-	}
+	//profile, err := service.ProfileService.FindProfileByUserId(order.UserID)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//if err := service.sendNotifications(order, profile, NotificationApproved); err != nil {
+	//	return err
+	//}
 
 	return nil
 }
@@ -115,8 +120,8 @@ func (service *OrderService) CancelOrder(ctx context.Context, orderID uint) erro
 	return nil
 }
 
-func (service *OrderService) sendNotifications(order *CustomerOrder, profile *CustomerProfile, notificationType Notification) error {
-	dispatch := map[Notification]func(INotificationService, *CustomerOrder, *CustomerProfile) error{
+func (service *OrderService) sendNotifications(order *CustomerOrder, profile *UserProfile, notificationType Notification) error {
+	dispatch := map[Notification]func(INotificationService, *CustomerOrder, *UserProfile) error{
 		NotificationApproved:           INotificationService.SendOrderApprovedMessage,
 		NotificationWaitingForApproval: INotificationService.SendOrderWaitingForApprovalMessage,
 	}
@@ -138,7 +143,7 @@ func (service *OrderService) sendNotifications(order *CustomerOrder, profile *Cu
 	return nil
 }
 
-func (service *OrderService) GetNotificationServicesByProfile(profile *CustomerProfile) []INotificationService {
+func (service *OrderService) GetNotificationServicesByProfile(profile *UserProfile) []INotificationService {
 	serviceMap := map[NotificationApproach]INotificationService{
 		NotificationApproachEmail:       service.EmailService,
 		NotificationApproachSMS:         service.SmsService,
