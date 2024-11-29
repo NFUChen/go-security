@@ -38,6 +38,7 @@ type FieldType string
 
 const (
 	FieldTypeText     FieldType = "text"
+	FieldTypeTextArea FieldType = "textarea"
 	FieldTypeFile     FieldType = "file"
 	FieldTypeCheckbox FieldType = "checkbox"
 	FieldTypeCombobox FieldType = "combobox"
@@ -98,6 +99,14 @@ func (service *FormService) GetUserProfileFormTemplate() *Form {
 			Key:      "notification_approaches",
 			Label:    "通知方式",
 			Type:     FieldTypeCheckbox,
+			ReadOnly: false,
+			Required: true,
+			Options:  options,
+		},
+		{
+			Key:      "user_description",
+			Label:    "使用者描述",
+			Type:     FieldTypeTextArea,
 			ReadOnly: false,
 			Required: true,
 			Options:  options,
@@ -196,7 +205,35 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 	return form, nil
 }
 
-func GetUserFormTemplate() *Form {
+func (service *FormService) GetProductFormTemplate() *Form {
+	fields := []*FormField{
+		{
+			Key:      "name",
+			Label:    "產品名稱",
+			Type:     FieldTypeText,
+			ReadOnly: false,
+			Required: true,
+		},
+		{
+			Key:      "price",
+			Label:    "價格",
+			Type:     FieldTypeText,
+			ReadOnly: false,
+			Required: true,
+		},
+		{
+			Key:      "description",
+			Label:    "產品描述",
+			Type:     FieldTypeTextArea,
+			ReadOnly: false,
+			Required: true,
+		},
+	}
+
+	return &Form{Fields: fields}
+}
+
+func (service *FormService) GetUserFormTemplate() *Form {
 	fields := []*FormField{
 		{
 			Key:      "name",

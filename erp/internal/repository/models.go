@@ -121,10 +121,10 @@ func (order *CustomerOrder) AsJson() (string, error) {
 }
 
 type Product struct {
-	ID          uint    `gorm:"primaryKey" json:"id"` // Auto-increment primary key
-	Name        string  `gorm:"type:varchar(100); not null" json:"name"`
-	Description string  `gorm:"type:text" json:"description"`
-	PictureURL  *string `gorm:"type:text" json:"picture_url"`
+	ID                       uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	Name                     string `gorm:"type:varchar(100); not null" json:"name"`
+	Description              string `gorm:"type:text" json:"description"`
+	ProfilePictureObjectName string `gorm:"type:text" json:"profile_picture_object_name"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
