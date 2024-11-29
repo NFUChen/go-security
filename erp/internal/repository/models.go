@@ -8,8 +8,8 @@ import (
 
 type PricingPolicy struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
-	Name        string `gorm:"type:varchar(100);not null" json:"name"` // Policy name
-	Description string `gorm:"type:text" json:"description"`           // Optional description
+	Name        string `gorm:"type:varchar(100);not null;unique" json:"name"` // Policy name
+	Description string `gorm:"type:text" json:"description"`                  // Optional description
 
 	PolicyPrices []PolicyPrice `gorm:"foreignKey:PolicyID" json:"policy_prices"` // Prices for specific products
 	CreatedAt    time.Time     `json:"created_at"`
@@ -47,7 +47,6 @@ type NotificationApproach struct {
 	Enabled bool             `gorm:"default:true" json:"enabled"`
 }
 
-// TODO: pricing policy service for creatign default pricing policy
 type UserProfile struct {
 	ID     uint `gorm:"primaryKey" json:"id"`
 	UserID uint `gorm:"not null; unique" json:"user_id"` // Foreign key linking to User.ID
@@ -64,9 +63,9 @@ type UserProfile struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
 
-	UserDescription   string `gorm:"type:text" json:"user_description"`
-	Address           string `gorm:"type:text" json:"address"`
-	ProfilePictureURL string `gorm:"type:text" json:"profile_image_url"`
+	UserDescription          string `gorm:"type:text" json:"user_description"`
+	Address                  string `gorm:"type:text" json:"address"`
+	ProfilePictureObjectName string `gorm:"type:text" json:"profile_picture_object_name"`
 }
 
 func (profile *UserProfile) AllNotificationTypes() []NotificationType {

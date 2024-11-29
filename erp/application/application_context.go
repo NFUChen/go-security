@@ -76,23 +76,32 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 		log.Fatal().Msgf("failed to load configuration, %v", err)
 	}
 
+	orderRepo := repository.NewOrderRepository(baseApp.SqlEngine)
+	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine)
+
 	snsClient := sns.NewFromConfig(awsConfig)
 	snsService := notification.NewAwsSnsService(snsClient)
 	minioClient := appService.MustNewMinIOCredentials(appConfig.Minio)
 	fileUploadService := appService.NewFileUploadService(minioClient, appConfig.Minio.DefaultBucketName)
 
-	services := []service.IService{
-		snsService,
-		fileUploadService,
-	}
+	profileService := appService.NewProfileService(baseApp.SqlEngine, profileRepo, fileUploadService)
+	log.Warn().Msgf("Please make sure to inject pricing policy service to profile service")
 
-	orderRepo := repository.NewOrderRepository(baseApp.SqlEngine)
-	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine)
-
-	profileService := appService.NewProfileService(profileRepo, fileUploadService)
 	emailService := notification.NewEmailService(appDeps.SmtpService)
 	lineService := notification.NewLineService()
 	formService := view.NewFormService(profileService, appDeps.UserService)
+	pricingPolicyRepo := repository.NewPricingPolicyRepository(baseApp.SqlEngine)
+	pricingPolicyService := appService.NewPricingPolicyService(pricingPolicyRepo)
+	profilePricingService := appService.NewProfilePricingService(profileService, pricingPolicyService) // cross-domain service, for interact with profile and pricing policy
+
+	log.Info().Msg("Injecting pricing policy service to profile service")
+	profileService.InjectPricingPolicyService(pricingPolicyService)
+
+	services := []service.IService{
+		snsService,
+		fileUploadService,
+		pricingPolicyService,
+	}
 
 	_ = appService.NewOrderService(orderRepo, profileService, emailService, snsService, lineService)
 	router := baseApp.Engine.Group("/erp-api")
@@ -108,10 +117,13 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 	)
 	formController := controller.NewFormController(router, formService, appDeps.UserService)
 
+	pricingPolicyController := controller.NewPricingPolicyController(router, appDeps.UserService, pricingPolicyService, profilePricingService)
+
 	controllers := []baseController.Controller{
 		lineController,
 		profileController,
 		formController,
+		pricingPolicyController,
 	}
 
 	return &ApplicationContext{

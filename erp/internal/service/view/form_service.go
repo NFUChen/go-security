@@ -129,8 +129,8 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 		phoneNumber = profile.PhoneNumber
 		address = profile.Address
 		notificationTypes = profile.AllNotificationTypes()
-		if len(profile.ProfilePictureURL) == 0 {
-			profilePictureURL = profile.ProfilePictureURL
+		if len(profile.ProfilePictureObjectName) == 0 {
+			profilePictureURL = profile.ProfilePictureObjectName
 		}
 	}
 

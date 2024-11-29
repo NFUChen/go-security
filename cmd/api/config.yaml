@@ -5,6 +5,10 @@ security:
   secret: "secret"
   excluded_routes_prefixes:
     - "/api/public"
+    - "/erp-api/public"
+    - "/swagger"
+  admin_redirect_url: /admin
+  client_redirect_url: /client
 
 postgres_data_source:
     host: "localhost"

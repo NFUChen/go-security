@@ -12,7 +12,7 @@ func (service *ProfilePricingService) ApplyPricingPolicyToProfile(ctx context.Co
 	if err != nil {
 		return err
 	}
-	policy, err := service.PricingPolicyService.GetPolicyByID(policyID)
+	policy, err := service.PricingPolicyService.GetPolicyByID(ctx, policyID)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go-security/erp/internal"
 	. "go-security/security"
+	"gorm.io/gorm"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,18 +19,25 @@ import (
 )
 
 type ProfileService struct {
-	UserService       *UserService
-	ProfileRepository IProfileRepository
-	FileUploadService IFileUploadService
+	Engine               *gorm.DB
+	PricingPolicyService *PricingPolicyService
+	UserService          *UserService
+	ProfileRepository    IProfileRepository
+	FileUploadService    IFileUploadService
 }
 
 type URL string
 
-func NewProfileService(profileRepository IProfileRepository, fileUploadService IFileUploadService) *ProfileService {
+func NewProfileService(Engine *gorm.DB, profileRepository IProfileRepository, fileUploadService IFileUploadService) *ProfileService {
 	return &ProfileService{
+		Engine:            Engine,
 		ProfileRepository: profileRepository,
 		FileUploadService: fileUploadService,
 	}
+}
+
+func (service *ProfileService) InjectPricingPolicyService(pricingPolicyService *PricingPolicyService) {
+	service.PricingPolicyService = pricingPolicyService
 }
 
 func (service *ProfileService) GetAllNotificationTypes() []NotificationType {
@@ -57,10 +65,16 @@ func (service *ProfileService) GetProfileByUserID(ctx context.Context, userID ui
 }
 
 func (service *ProfileService) CreateDefaultProfile(ctx context.Context, userID uint) (*UserProfile, error) {
-	profile := UserProfile{
-		UserID: userID,
+	policy, err := service.PricingPolicyService.GetDefaultPolicy(ctx)
+	if err != nil {
+		return nil, internal.DefaultPolicyNotFound
 	}
-	err := service.ProfileRepository.AddProfile(ctx, &profile)
+
+	profile := UserProfile{
+		UserID:          userID,
+		PricingPolicyID: policy.ID,
+	}
+	err = service.ProfileRepository.AddProfile(ctx, &profile)
 	if err != nil {
 		return nil, err
 	}
@@ -75,23 +89,59 @@ func (service *ProfileService) FindProfileByUserId(ctx context.Context, customer
 	return profile, nil
 }
 
-func (service *ProfileService) AddProfile(
+func (service *ProfileService) UpsertProfile(
 	ctx context.Context,
 	userID uint,
 	phoneNumber string,
-) error {
+	description string,
+	address string,
+	notificationApproaches []NotificationApproach,
+) (*UserProfile, error) {
 	newProfile := UserProfile{
-		UserID:      userID,
-		PhoneNumber: phoneNumber,
+		UserID:          userID,
+		PhoneNumber:     phoneNumber,
+		UserDescription: description,
+		Address:         address,
 	}
 	user, err := service.UserService.GetUserByID(ctx, userID)
 	if err != nil {
-		return UserNotFound
+		return nil, UserNotFound
 	}
 	if err := service.validateProfile(&newProfile, user); err != nil {
-		return err
+		return nil, err
 	}
-	return service.ProfileRepository.AddProfile(ctx, &newProfile)
+	existingProfile, err := service.ProfileRepository.FindProfileByUserID(ctx, userID)
+	alreadyExists := err == nil && existingProfile != nil
+
+	transactionErr := service.Engine.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if alreadyExists {
+			log.Info().Msg("Profile already exists, updating profile")
+			updatedMap := map[string]any{
+				"phone_number":     phoneNumber,
+				"user_description": description,
+				"address":          address,
+			}
+			if err := service.ProfileRepository.TransactionalUpdateProfile(tx, existingProfile, updatedMap); err != nil {
+				log.Error().Err(err).Msg("Failed to update profile")
+				return err
+			}
+		} else {
+			log.Info().Msg("Profile not exists, creating new profile")
+			if err := service.ProfileRepository.TransactionalAddProfile(tx, &newProfile); err != nil {
+				log.Error().Err(err).Msg("Failed to add new profile")
+				return err
+			}
+		}
+		// TODO: Implement notification approach for notification approach service, the whole point of using transaction...
+
+		return nil
+	})
+
+	if transactionErr != nil {
+		return nil, err
+	}
+	return &newProfile, nil
+
 }
 
 func (service *ProfileService) validateProfile(profile *UserProfile, user *User) error {
@@ -156,8 +206,8 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, internal.ProfileNotCreated
 	}
 
-	if len(profile.ProfilePictureURL) == 0 {
-		if err := service.FileUploadService.DeleteFile(ctx, profile.ProfilePictureURL); err != nil {
+	if len(profile.ProfilePictureObjectName) == 0 {
+		if err := service.FileUploadService.DeleteFile(ctx, profile.ProfilePictureObjectName); err != nil {
 			log.Warn().Err(err).Msg("Failed to delete old profile image")
 		}
 	}
@@ -167,8 +217,8 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, err
 	}
 
-	profile.ProfilePictureURL = uploadInfo.Key
-	if err := service.UpdateProfile(ctx, profile, map[string]any{"profile_picture_url": uploadInfo.Key}); err != nil {
+	profile.ProfilePictureObjectName = uploadInfo.Key
+	if err := service.UpdateProfile(ctx, profile, map[string]any{"profile_picture_object_name": uploadInfo.Key}); err != nil {
 		return nil, nil, err
 	}
 

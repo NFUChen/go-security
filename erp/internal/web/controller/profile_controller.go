@@ -39,7 +39,7 @@ func (controller *ProfileController) RegisterRoutes() {
 	}
 	controller.Router.GET("/private/profile-by-id", web.RoleRequired(superAdmin, controller.GetProfileByUserID))
 	controller.Router.GET("/private/personal-profile", controller.GetProfile)
-	controller.Router.POST("/private/profile", controller.AddProfile)
+	controller.Router.POST("/private/profile", controller.UpsertProfile)
 	controller.Router.GET("private/profile", controller.GetAllProfiles)
 	controller.Router.GET("/private/is_complete_profile", controller.IsCompleteProfile)
 	controller.Router.POST("/private/self_upload_profile_picture", controller.SelfUploadProfilePicture)
@@ -70,18 +70,25 @@ func (controller *ProfileController) GetProfile(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, profile)
 }
 
-func (controller *ProfileController) AddProfile(ctx echo.Context) error {
+func (controller *ProfileController) UpsertProfile(ctx echo.Context) error {
 	user, _ := baseController.ExtractUserClaims(ctx)
 	var profile repository.UserProfile
 	if err := ctx.Bind(&profile); err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
 
-	err := controller.ProfileService.AddProfile(ctx.Request().Context(), user.ID, profile.PhoneNumber)
+	newProfile, err := controller.ProfileService.UpsertProfile(
+		ctx.Request().Context(),
+		user.ID,
+		profile.PhoneNumber,
+		profile.UserDescription,
+		profile.Address,
+		profile.NotificationApproaches,
+	)
 	if err != nil {
 		return err
 	}
-	return ctx.NoContent(http.StatusCreated)
+	return ctx.JSON(http.StatusCreated, newProfile)
 }
 
 func (controller *ProfileController) MultiPartFileToOsFile(src *multipart.FileHeader) (*os.File, error) {
@@ -113,9 +120,15 @@ func (controller *ProfileController) UploadHandler(ctx echo.Context, userID uint
 		return internal.UnableToConvertFile
 	}
 
-	defer osFile.Close()
+	defer func() {
+		if err := os.Remove(osFile.Name()); err != nil {
+			log.Error().Err(err).Msg("Unable to remove file")
+		}
+		log.Info().Msg("File removed, closing file")
+		osFile.Close()
+	}()
 
-	url, uploadInfo, err := controller.ProfileService.UploadUserProfilePicture(ctx.Request().Context(), uint(userID), osFile)
+	url, uploadInfo, err := controller.ProfileService.UploadUserProfilePicture(ctx.Request().Context(), userID, osFile)
 	if err != nil {
 		return err
 	}

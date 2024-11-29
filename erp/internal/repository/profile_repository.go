@@ -11,14 +11,34 @@ type IProfileRepository interface {
 	AddProfile(ctx context.Context, profile *UserProfile) error
 	UpdateProfile(ctx context.Context, profile *UserProfile, values any) error
 	FindAllProfiles(ctx context.Context) ([]*UserProfile, error)
+
+	TransactionalUpdateProfile(tx *gorm.DB, profile *UserProfile, values any) error
+	TransactionalAddProfile(tx *gorm.DB, profile *UserProfile) error
 }
 
 type ProfileRepository struct {
 	Engine *gorm.DB
 }
 
+func (repo *ProfileRepository) TransactionalUpdateProfile(session *gorm.DB, profile *UserProfile, values any) error {
+	return session.Model(&profile).Updates(values).Error
+}
+
+func (repo *ProfileRepository) TransactionalAddProfile(tx *gorm.DB, profile *UserProfile) error {
+	return tx.Create(profile).Error
+}
+
 func (repo *ProfileRepository) createPreloadQuery(ctx context.Context) *gorm.DB {
-	return repo.Engine.WithContext(ctx).Preload("NotificationApproaches")
+
+	preloadsRequired := []string{
+		"NotificationApproaches", "PricingPolicy",
+	}
+	engine := repo.Engine.WithContext(ctx)
+	for _, preload := range preloadsRequired {
+		engine = engine.Preload(preload)
+	}
+
+	return engine
 }
 
 func (repo *ProfileRepository) FindAllProfiles(ctx context.Context) ([]*UserProfile, error) {

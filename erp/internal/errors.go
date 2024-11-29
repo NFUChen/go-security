@@ -15,4 +15,6 @@ var (
 	ProfileImageNotValid          = errors.New("ProfileImageNotValid")
 	UnableToConvertFile           = errors.New("UnableToConvertFile")
 	ProfileNotCreated             = errors.New("ProfileNotCreated")
+	ProfileAlreadyExists          = errors.New("ProfileAlreadyExists")
+	DefaultPolicyNotFound         = errors.New("DefaultPolicyNotFound")
 )
