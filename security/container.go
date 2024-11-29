@@ -1,4 +1,4 @@
-package internal
+package security
 
 type Set[T comparable] map[T]bool
 
@@ -18,7 +18,7 @@ func (s Set[T]) Contains(value T) bool {
 	return false
 }
 
-func SetFromSlices[T comparable](slice []T) Set[T] {
+func SetFromSlice[T comparable](slice []T) Set[T] {
 	set := make(Set[T])
 	for _, value := range slice {
 		set.Add(value)

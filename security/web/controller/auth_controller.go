@@ -32,15 +32,16 @@ const (
 )
 
 func (controller *AuthController) RegisterRoutes() {
+
 	controller.Router.POST("/public/register", controller.RegisterUser)
 	controller.Router.POST("/public/login", controller.Login)
 	controller.Router.GET("/private/current-user", controller.GetUser)
 	controller.Router.POST("/public/issue-reset-password-token", controller.IssueResetPasswordToken)
-	controller.Router.POST("/public/send-reset-password-email", controller.SendResetPasswordEmail)
+
 	controller.Router.POST("/public/reset-password", controller.ResetPassword)
 
 	controller.Router.GET("/private/issue-verification-token", controller.IssueVerificationToken)
-	controller.Router.POST("/private/send-verification-email", controller.SendVerificationEmail)
+	controller.Router.GET("/private/is-admin-pushed-email-verification", controller.IsAdminPushedEmailVerification)
 	controller.Router.POST("/private/verify-email", controller.VerifyEmail)
 
 	controller.Router.GET("/private/logout", controller.Logout)
@@ -68,6 +69,17 @@ func (controller *AuthController) GetUser(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, userClaims)
+}
+
+func (controller *AuthController) IsAdminPushedEmailVerification(ctx echo.Context) error {
+	userClaims, err := ExtractUserClaims(ctx)
+	if err != nil {
+		return err
+	}
+	isAskingVerification := controller.UserVerificationService.IsAdminAskingForVerification(userClaims.ID)
+
+	return ctx.JSON(http.StatusOK, map[string]bool{"is_admin_pushed": isAskingVerification})
+
 }
 
 func (controller *AuthController) RegisterUser(ctx echo.Context) error {
@@ -118,7 +130,7 @@ func (controller *AuthController) SendResetPasswordEmail(ctx echo.Context) error
 	if err := ctx.Bind(&resetPasswordSchema); err != nil {
 		return err
 	}
-	token, err := controller.UserResetPasswordService.SendResetPasswordEmail(resetPasswordSchema.Token)
+	token, err := controller.UserResetPasswordService.SendResetPasswordEmail(ctx.Request().Context(), resetPasswordSchema.Token)
 	if err != nil {
 		return err
 	}
@@ -176,14 +188,29 @@ func (controller *AuthController) IssueResetPasswordToken(ctx echo.Context) erro
 	return ctx.JSON(http.StatusOK, map[string]string{"token": token})
 }
 
-func (controller *AuthController) SendVerificationEmail(ctx echo.Context) error {
+func (controller *AuthController) SendVerificationEmailByToken(ctx echo.Context) error {
 	var schema struct {
 		Token string `json:"token"`
 	}
 	if err := ctx.Bind(&schema); err != nil {
 		return err
 	}
-	err := controller.UserVerificationService.SendVerificationEmail(ctx.Request().Context(), schema.Token)
+	err := controller.UserVerificationService.SendVerificationEmailByToken(ctx.Request().Context(), schema.Token)
+	if err != nil {
+		return err
+	}
+	return ctx.NoContent(http.StatusAccepted)
+}
+
+func (controller *AuthController) AdminSendVerificationEmailByUserID(ctx echo.Context) error {
+	var schema struct {
+		UserID uint `json:"user_id"`
+	}
+	if err := ctx.Bind(&schema); err != nil {
+		return err
+	}
+
+	err := controller.UserVerificationService.SendVerificationEmailByUserID(ctx.Request().Context(), schema.UserID, true)
 	if err != nil {
 		return err
 	}

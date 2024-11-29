@@ -12,10 +12,10 @@ const (
 	OrderStateShipped           OrderState = "Shipped"
 )
 
-type NotificationApproach string
+type NotificationType string
 
 const (
-	NotificationApproachEmail       NotificationApproach = "Email"
-	NotificationApproachSMS         NotificationApproach = "SMS"
-	NotificationApproachLineMessage NotificationApproach = "LINE"
+	NotificationTypeEmail       NotificationType = "Email"
+	NotificationTypeSMS         NotificationType = "SMS"
+	NotificationTypeLineMessage NotificationType = "LINE"
 )

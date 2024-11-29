@@ -69,7 +69,7 @@ func (service *AuthService) PostConstruct() {
 }
 
 func (service *AuthService) Login(ctx context.Context, email string, password string) (string, error) {
-	user, err := service.UserService.FindUserByEmail(ctx, email)
+	user, err := service.UserService.GetUserByEmail(ctx, email)
 	if err != nil {
 		return "", security.UserNotFound
 	}
@@ -215,7 +215,7 @@ func (service *AuthService) RegisterUserAsGuest(ctx context.Context, name string
 }
 
 func (service *AuthService) RegisterUser(ctx context.Context, name string, email string, password string, platformType PlatformType, externalID *string, userRole string) (*User, error) {
-	existingUser, err := service.UserService.FindUserByEmail(ctx, email)
+	existingUser, err := service.UserService.GetUserByEmail(ctx, email)
 	if err == nil {
 		log.Info().Msgf("User already exists: %v", existingUser)
 		return existingUser, security.UserAlreadyExists
@@ -224,12 +224,12 @@ func (service *AuthService) RegisterUser(ctx context.Context, name string, email
 	if err != nil {
 		return nil, err
 	}
-	role, err := service.UserService.FindRoleByName(ctx, userRole)
+	role, err := service.UserService.GetRoleByName(ctx, userRole)
 	if err != nil {
 		return nil, err
 	}
 
-	platform, err := service.UserService.FindPlatformByName(ctx, platformType)
+	platform, err := service.UserService.GetPlatformByName(ctx, platformType)
 	if err != nil {
 		return nil, err
 	}

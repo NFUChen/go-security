@@ -25,15 +25,15 @@ func NewUserController(routerGroup *echo.Group, userService *service.UserService
 }
 
 func (controller *UserController) RegisterRoutes() {
-	adminRole, err := controller.UserService.FindRoleByName(context.Background(), service.RoleAdmin)
+	adminRole, err := controller.UserService.GetRoleByName(context.Background(), service.RoleAdmin)
 	if err != nil {
 		panic(err)
 	}
-	controller.Router.GET("/private/user", web.RoleRequired(adminRole.RoleIndex, controller.GetUser))
+	controller.Router.GET("/private/user", web.RoleRequired(adminRole, controller.GetUser))
 }
 
 func (controller *UserController) GetUser(ctx echo.Context) error {
-	users, err := controller.UserService.FindAllUsers(ctx.Request().Context())
+	users, err := controller.UserService.GetAllUsers(ctx.Request().Context())
 	if err != nil {
 		return err
 	}

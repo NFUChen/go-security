@@ -78,7 +78,7 @@ func (service *UserResetPasswordService) extractResetPasswordClaims(claims *jwt.
 }
 
 func (service *UserResetPasswordService) doResetPassword(ctx context.Context, userId uint, newPassword string) error {
-	user, err := service.UserService.FindUserByID(ctx, userId)
+	user, err := service.UserService.GetUserByID(ctx, userId)
 	if err != nil {
 		return security.UserNotFound
 	}
@@ -116,9 +116,13 @@ func (service *UserResetPasswordService) ResetPassword(ctx context.Context, toke
 }
 
 func (service *UserResetPasswordService) IssueResetPasswordToken(ctx context.Context, email string) (string, error) {
-	user, err := service.UserService.FindUserByEmail(ctx, email)
+	user, err := service.UserService.GetUserByEmail(ctx, email)
 	if err != nil {
 		return "", err
+	}
+
+	if user.Platform.Name != string(PlatformSelf) {
+		return "", security.SelfPlatformRequiredForPasswordReset
 	}
 
 	claims := jwt.MapClaims{
@@ -129,14 +133,14 @@ func (service *UserResetPasswordService) IssueResetPasswordToken(ctx context.Con
 	return service.AuthService.IssueJsonWebToken(&claims), nil
 }
 
-func (service *UserResetPasswordService) SendResetPasswordEmail(token string) (string, error) {
+func (service *UserResetPasswordService) SendResetPasswordEmail(context context.Context, token string) (string, error) {
 
 	claims, err := service.parseResetPasswordClaims(token)
 	if err != nil {
 		return "", err
 	}
 
-	user, err := service.UserService.FindUserByID(context.Background(), claims.ID)
+	user, err := service.UserService.GetUserByID(context, claims.ID)
 	if err != nil {
 		return "", err
 	}
@@ -155,7 +159,9 @@ func (service *UserResetPasswordService) SendResetPasswordEmail(token string) (s
 	}
 	body := buffer.String()
 	message := service.SmtpService.CreateNewMessage(user.Email, subject, body, ContentTypeHtml)
-	service.SmtpService.SendEmail(message)
+	if err := service.SmtpService.SendEmail(message); err != nil {
+		return "", err
+	}
 	return token, nil
 
 }

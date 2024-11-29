@@ -5,12 +5,20 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 	"io"
+	"strings"
 )
 
 func RequestLoggerMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(ctx echo.Context) error {
+
+		url := ctx.Request().URL.Path
+
+		if strings.Contains(url, "upload") {
+			return next(ctx)
+		}
+
 		// Save the original body reader
-		req := c.Request()
+		req := ctx.Request()
 		body := req.Body
 
 		// Read the body
@@ -28,6 +36,6 @@ func RequestLoggerMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// Reset the body so it can be read again
 		req.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
 
-		return next(c)
+		return next(ctx)
 	}
 }

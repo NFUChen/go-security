@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/rs/zerolog/log"
 	"go-security/security"
 	"html/template"
 	"time"
@@ -16,14 +17,25 @@ type UserVerificationClaims struct {
 }
 
 type UserVerificationService struct {
-	SmtpService ISmtpService
-	UserService *UserService
-	AuthService *AuthService
-	OtpService  *OtpService
+	SmtpService                       ISmtpService
+	UserService                       *UserService
+	AuthService                       *AuthService
+	OtpService                        *OtpService
+	AdminPushedEmailVerificationCache security.Set[uint]
+}
+
+func NewUserVerificationService(smtpService ISmtpService, userService *UserService, authService *AuthService, otpService *OtpService) *UserVerificationService {
+	return &UserVerificationService{
+		SmtpService:                       smtpService,
+		UserService:                       userService,
+		AuthService:                       authService,
+		OtpService:                        otpService,
+		AdminPushedEmailVerificationCache: make(security.Set[uint]),
+	}
 }
 
 func (service *UserVerificationService) IssueVerificationToken(ctx context.Context, userID uint) (string, error) {
-	user, err := service.UserService.FindUserByID(ctx, userID)
+	user, err := service.UserService.GetUserByID(ctx, userID)
 	if err != nil {
 		return "", err
 	}
@@ -43,15 +55,23 @@ func (service *UserVerificationService) IssueVerificationToken(ctx context.Conte
 	return _jwt, nil
 }
 
-func (service *UserVerificationService) SendVerificationEmail(ctx context.Context, token string) error {
-	claims, err := service.parseVerificationClaims(token)
+func (service *UserVerificationService) IsAdminAskingForVerification(userID uint) bool {
+	return service.AdminPushedEmailVerificationCache.Contains(userID)
+}
+
+func (service *UserVerificationService) SendVerificationEmailByUserID(ctx context.Context, userID uint, isAdminPushed bool) error {
+
+	user, err := service.UserService.GetUserByID(ctx, userID)
 	if err != nil {
 		return err
 	}
+	if user.IsVerified {
+		return security.UserAlreadyVerified
+	}
 
-	user, err := service.UserService.FindUserByID(ctx, claims.ID)
-	if err != nil {
-		return err
+	if isAdminPushed {
+		log.Info().Msgf("Admin is pushing email verification for user %d", user.ID)
+		service.AdminPushedEmailVerificationCache.Add(user.ID)
 	}
 
 	_template, err := template.New("email_verification").Parse(EMAIL_VERIFICATION_HTML_TEMPLATE)
@@ -69,9 +89,16 @@ func (service *UserVerificationService) SendVerificationEmail(ctx context.Contex
 	emailContent := buffer.String()
 
 	message := service.SmtpService.CreateNewMessage(user.Email, "Email Verification", emailContent, ContentTypeHtml)
-	service.SmtpService.SendEmail(message)
 
-	return nil
+	return service.SmtpService.SendEmail(message)
+}
+
+func (service *UserVerificationService) SendVerificationEmailByToken(ctx context.Context, token string) error {
+	claims, err := service.parseVerificationClaims(token)
+	if err != nil {
+		return err
+	}
+	return service.SendVerificationEmailByUserID(ctx, claims.ID, false)
 }
 
 func (service *UserVerificationService) parseVerificationClaims(token string) (*UserVerificationClaims, error) {
@@ -117,16 +144,15 @@ func (service *UserVerificationService) VerifyEmail(token string, otpCode string
 	if err := service.OtpService.VerifyOtp(claims.ID, PurposeGuestEmailVerification, otpCode); err != nil {
 		return err
 	}
-	user, err := service.UserService.FindUserByID(context.Background(), claims.ID)
+	user, err := service.UserService.GetUserByID(context.Background(), claims.ID)
+	if err != nil {
+		return err
+	}
+
+	if service.AdminPushedEmailVerificationCache.Contains(user.ID) {
+		log.Info().Msgf("user: %d is inside cache, removing from cache upone verification", user.ID)
+		service.AdminPushedEmailVerificationCache.Remove(user.ID)
+	}
 
 	return service.UserService.ActivateUser(context.Background(), user)
-}
-
-func NewUserVerificationService(smtpService ISmtpService, userService *UserService, authService *AuthService, otpService *OtpService) *UserVerificationService {
-	return &UserVerificationService{
-		SmtpService: smtpService,
-		UserService: userService,
-		AuthService: authService,
-		OtpService:  otpService,
-	}
 }

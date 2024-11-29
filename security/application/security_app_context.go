@@ -1,7 +1,6 @@
 package application
 
 import (
-	"context"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -11,13 +10,15 @@ import (
 	"go-security/security/service/oauth"
 	"go-security/security/web/controller"
 	web "go-security/security/web/middleware"
-	"gorm.io/gorm"
 )
 
-func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engine *echo.Echo) *ApplicationContext {
+func MustNewSecurityApplicationContext(app *Application) *ApplicationContext {
+	config := app.AppConfig
+	sqlEngine := app.SqlEngine
+	engine := app.Engine
+
 	log.Printf("Starting application...")
 	fmt.Printf("%s\n", config.AsJson())
-	ctx := context.Background()
 	log.Info().Msgf("Connected to database: %s", config.PostgresDataSource.DatabaseName)
 
 	otpService := service.NewOtpService(service.GenerateOtpCode)
@@ -26,23 +27,26 @@ func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engin
 	authService := service.NewAuthService(userService, config.Security.Secret)
 	authMiddleware := web.NewAuthMiddleware(authService, config.Security.ExcludedRoutePrefixes)
 	log.Info().Msgf("Security excluded routes: %v", config.Security.ExcludedRoutePrefixes)
-	smtpService := service.NewSmtpService(ctx, config.Smtp)
+	smtpService := service.NewSmtpService(config.Smtp)
 	resetPasswordService := service.NewUserResetPasswordService(smtpService, userService, authService, otpService)
 	verificationService := service.NewUserVerificationService(smtpService, userService, authService, otpService)
 
 	googleAuthService := oauth.NewGoogleAuthService(config.GoogleAuthConfig, authService, userService)
 
 	baseRouterGroup := engine.Group("/api")
+	rateLimitedRouterGroup := engine.Group("/api")
 
 	mainController := controller.NewMainController(engine)
 	authController := controller.NewAuthController(baseRouterGroup, authService, resetPasswordService, verificationService, userService, config.Security)
 	userController := controller.NewUserController(baseRouterGroup, userService, resetPasswordService, verificationService)
 	googleAuthController := controller.NewGoogleAuthController(baseRouterGroup, googleAuthService, config.Security)
+	emailRateLimitedController := controller.NewEmailRateLimitedController(rateLimitedRouterGroup, userService, authController)
 	controllers := []controller.Controller{
 		mainController,
 		authController,
 		userController,
 		googleAuthController,
+		emailRateLimitedController,
 	}
 	middlewares := []echo.MiddlewareFunc{
 		middleware.Recover(),
@@ -54,6 +58,7 @@ func MustNewSecurityApplicationContext(config *Config, sqlEngine *gorm.DB, engin
 	}
 
 	engine.Use(middlewares...)
+	rateLimitedRouterGroup.Use(web.EmailRateLimitMiddleware)
 
 	services := []service.IService{
 		userService,

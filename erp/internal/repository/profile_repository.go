@@ -6,24 +6,42 @@ import (
 )
 
 type IProfileRepository interface {
-	FindProfileByUserId(ctx context.Context, customerId uint) (*UserProfile, error)
+	FindProfileByUserID(ctx context.Context, customerId uint) (*UserProfile, error)
+	FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error)
 	AddProfile(ctx context.Context, profile *UserProfile) error
 	UpdateProfile(ctx context.Context, profile *UserProfile, values any) error
-	FindProfileByID(ctx context.Context, ID uint) (*UserProfile, error)
+	FindAllProfiles(ctx context.Context) ([]*UserProfile, error)
 }
 
 type ProfileRepository struct {
 	Engine *gorm.DB
 }
 
-func (repo ProfileRepository) FindProfileByID(ctx context.Context, ID uint) (*UserProfile, error) {
-	//TODO implement me
-	panic("implement me")
+func (repo *ProfileRepository) createPreloadQuery(ctx context.Context) *gorm.DB {
+	return repo.Engine.WithContext(ctx).Preload("NotificationApproaches")
 }
 
-func (repo ProfileRepository) FindProfileByUserId(ctx context.Context, customerId uint) (*UserProfile, error) {
+func (repo *ProfileRepository) FindAllProfiles(ctx context.Context) ([]*UserProfile, error) {
+	profiles := []*UserProfile{}
+	tx := repo.createPreloadQuery(ctx).Find(&profiles)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return profiles, nil
+}
+
+func (repo ProfileRepository) FindProfileByID(ctx context.Context, ID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.Engine.WithContext(ctx).Where("customer_id = ?", customerId).First(&profile)
+	tx := repo.createPreloadQuery(ctx).Where("id = ?", ID).First(&profile)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return &profile, nil
+}
+
+func (repo ProfileRepository) FindProfileByUserID(ctx context.Context, ID uint) (*UserProfile, error) {
+	profile := UserProfile{}
+	tx := repo.createPreloadQuery(ctx).First(&profile, ID)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}

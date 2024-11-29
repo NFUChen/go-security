@@ -12,8 +12,9 @@ type AwsConfig struct {
 }
 
 type ErpApplicationConfig struct {
-	Aws  *AwsConfig          `yaml:"aws"`
-	Line *service.LineConfig `yaml:"line"`
+	Aws   *AwsConfig           `yaml:"aws"`
+	Line  *service.LineConfig  `yaml:"line"`
+	Minio *service.MinioConfig `yaml:"minio"`
 }
 
 func MustNewErpApplicationConfig(configPath string) *ErpApplicationConfig {

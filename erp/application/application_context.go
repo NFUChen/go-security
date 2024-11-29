@@ -10,6 +10,7 @@ import (
 	"go-security/erp/internal/repository"
 	appService "go-security/erp/internal/service"
 	"go-security/erp/internal/service/notification"
+	"go-security/erp/internal/service/view"
 	"go-security/erp/internal/web/controller"
 	. "go-security/security/application"
 	"go-security/security/service"
@@ -77,17 +78,21 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 
 	snsClient := sns.NewFromConfig(awsConfig)
 	snsService := notification.NewAwsSnsService(snsClient)
+	minioClient := appService.MustNewMinIOCredentials(appConfig.Minio)
+	fileUploadService := appService.NewFileUploadService(minioClient, appConfig.Minio.DefaultBucketName)
 
 	services := []service.IService{
 		snsService,
+		fileUploadService,
 	}
 
 	orderRepo := repository.NewOrderRepository(baseApp.SqlEngine)
 	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine)
 
-	profileService := appService.NewProfileService(profileRepo)
+	profileService := appService.NewProfileService(profileRepo, fileUploadService)
 	emailService := notification.NewEmailService(appDeps.SmtpService)
 	lineService := notification.NewLineService()
+	formService := view.NewFormService(profileService, appDeps.UserService)
 
 	_ = appService.NewOrderService(orderRepo, profileService, emailService, snsService, lineService)
 	router := baseApp.Engine.Group("/erp-api")
@@ -101,10 +106,12 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 		baseApp.AppConfig.Security,
 		appConfig.Line.ChannelSecret,
 	)
+	formController := controller.NewFormController(router, formService, appDeps.UserService)
 
 	controllers := []baseController.Controller{
 		lineController,
 		profileController,
+		formController,
 	}
 
 	return &ApplicationContext{

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
+	"go-security/security/repository"
 	"go-security/security/service"
 	"net/http"
 	"strings"
@@ -51,7 +52,7 @@ func (middleware *AuthMiddleware) AuthMiddlewareFunc(next echo.HandlerFunc) echo
 	}
 }
 
-func RoleRequired(requiredRoleIndex uint, next echo.HandlerFunc) echo.HandlerFunc {
+func RoleRequired(role *repository.UserRole, next echo.HandlerFunc) echo.HandlerFunc {
 	return func(ctx echo.Context) error {
 		user := ctx.Get("user")
 		castedUser, ok := user.(*service.UserClaims)
@@ -61,7 +62,7 @@ func RoleRequired(requiredRoleIndex uint, next echo.HandlerFunc) echo.HandlerFun
 			})
 		}
 
-		if castedUser.RoleIndex < requiredRoleIndex {
+		if castedUser.RoleIndex < role.RoleIndex {
 			log.Warn().Msgf("User %s with role %s has no permission to access this resource", castedUser.UserName, castedUser.RoleName)
 			return ctx.JSON(http.StatusForbidden, map[string]string{
 				"error": PermissionDenied.Error(),

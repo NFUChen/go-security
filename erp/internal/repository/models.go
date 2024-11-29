@@ -3,7 +3,6 @@ package repository
 import (
 	"encoding/json"
 	. "go-security/security/repository"
-	"gorm.io/gorm"
 	"time"
 )
 
@@ -22,7 +21,7 @@ type PolicyPrice struct {
 	ID        uint       `gorm:"primaryKey" json:"id"`
 	PolicyID  uint       `gorm:"not null;uniqueIndex:policy_product_idx" json:"policy_id"`  // Foreign key linking to PricingPolicy
 	ProductID uint       `gorm:"not null;uniqueIndex:policy_product_idx" json:"product_id"` // Foreign key linking to Product
-	Product   Product    `gorm:"foreignKey:ProductID" json:"-"`                             // Product relationship
+	Product   Product    `gorm:"foreignKey:ProductID; references:ID" json:"-"`              // Product relationship
 	Price     int        `gorm:"type:int;not null" json:"price"`                            // Price for the product under this policy
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -38,21 +37,44 @@ type OrderNotification struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
-type UserProfile struct {
+// TODO: NotificatonApproachService for creating all notification approaches for a user
+type NotificationApproach struct {
 	ID     uint `gorm:"primaryKey" json:"id"`
-	UserID uint `gorm:"not null" json:"customer_id"` // Foreign key linking to User.ID
+	UserID uint `gorm:"not null" json:"user_id"` // Foreign key linking to User.ID
 	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
 
-	NotificationApproaches []NotificationApproach `gorm:"not null; type:json" json:"notification_approach"`
+	Name    NotificationType `gorm:"type:varchar(50);not null" json:"approach"`
+	Enabled bool             `gorm:"default:true" json:"enabled"`
+}
+
+// TODO: pricing policy service for creatign default pricing policy
+type UserProfile struct {
+	ID     uint `gorm:"primaryKey" json:"id"`
+	UserID uint `gorm:"not null; unique" json:"user_id"` // Foreign key linking to User.ID
+	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
+
+	NotificationApproaches []NotificationApproach `gorm:"foreignKey:UserID" json:"notification_approaches"`
 	PhoneNumber            string                 `gorm:"type:varchar(20)" json:"phone_number"` // for SMS
 	IsPhoneNumberVerified  bool                   `gorm:"default:false" json:"is_phone_number_verified"`
 
-	PricingPolicyID uint          `json:"pricing_policy_id"`                                 // Foreign key linking to PricingPolicy
-	PricingPolicy   PricingPolicy `gorm:"foreignKey:PricingPolicyID;" json:"pricing_policy"` // Many-to-many relationship
+	PricingPolicyID uint          `json:"pricing_policy_id"`                                              // Foreign key linking to PricingPolicy
+	PricingPolicy   PricingPolicy `gorm:"foreignKey:PricingPolicyID;references:ID" json:"pricing_policy"` // Many-to-many relationship
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
+
+	UserDescription   string `gorm:"type:text" json:"user_description"`
+	Address           string `gorm:"type:text" json:"address"`
+	ProfilePictureURL string `gorm:"type:text" json:"profile_image_url"`
+}
+
+func (profile *UserProfile) AllNotificationTypes() []NotificationType {
+	var types []NotificationType
+	for _, approach := range profile.NotificationApproaches {
+		types = append(types, approach.Name)
+	}
+	return types
 }
 
 type CustomerOrder struct {
@@ -81,14 +103,6 @@ func (order *CustomerOrder) RemoveProduct(product *Product) {
 	}
 }
 
-func (order *CustomerOrder) TotalAmount() int {
-	amount := 0
-	for _, product := range order.Products {
-		amount += product.Price
-	}
-	return amount
-}
-
 func (order *CustomerOrder) AsJson() (string, error) {
 	_json, err := json.Marshal(order)
 	if err != nil {
@@ -100,7 +114,6 @@ func (order *CustomerOrder) AsJson() (string, error) {
 		return "", err
 	}
 
-	_map["total_amount"] = order.TotalAmount()
 	updatedJson, err := json.Marshal(_map)
 	if err != nil {
 		return "", err
@@ -109,8 +122,12 @@ func (order *CustomerOrder) AsJson() (string, error) {
 }
 
 type Product struct {
-	gorm.Model
-	ID    uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
-	Name  string `gorm:"type:varchar(100); not null" json:"name"`
-	Price int    `gorm:"type:int; not null" json:"amount"`
+	ID          uint    `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	Name        string  `gorm:"type:varchar(100); not null" json:"name"`
+	Description string  `gorm:"type:text" json:"description"`
+	PictureURL  *string `gorm:"type:text" json:"picture_url"`
+
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at"`
 }

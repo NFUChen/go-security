@@ -145,7 +145,7 @@ func (service *LineLoginService) VerifyIDToken(idToken string) (*LineUser, error
 }
 
 func (service *LineLoginService) RegisterAndLogin(ctx context.Context, user *LineUser) (string, error) {
-	targetUser, err := service.UserService.FindUserByEmail(ctx, user.Email)
+	targetUser, err := service.UserService.GetUserByEmail(ctx, user.Email)
 	if targetUser == nil && errors.Is(err, security.UserNotFound) {
 		targetUser, err = service.AuthService.RegisterUserAsGuest(ctx, user.UserName, user.Email, user.Subject, PlatformLine, &user.Subject)
 	}

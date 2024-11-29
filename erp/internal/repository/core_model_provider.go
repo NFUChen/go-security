@@ -10,6 +10,7 @@ func (provider *CoreModelProvider) ProvideModels() []any {
 		&Product{},
 		&PricingPolicy{},
 		&PolicyPrice{},
+		&NotificationApproach{},
 	}
 }
 

@@ -70,7 +70,7 @@ func (service *OrderService) PlaceOrder(ctx context.Context, user *User) error {
 		return err
 	}
 	// TODO: Notification should be sent to the customer, either by email, SMS, or Line message, (clicked by admin or triggered by system)
-	//profile, err := service.ProfileService.FindProfileByUserId(customer.ID)
+	//profile, err := service.ProfileService.FindProfileByUserID(customer.ID)
 	//if err != nil {
 	//	return err
 	//}
@@ -95,7 +95,7 @@ func (service *OrderService) ApproveOrder(ctx context.Context, orderID uint) err
 		return err
 	}
 
-	//profile, err := service.ProfileService.FindProfileByUserId(order.UserID)
+	//profile, err := service.ProfileService.FindProfileByUserID(order.UserID)
 	//if err != nil {
 	//	return err
 	//}
@@ -144,15 +144,15 @@ func (service *OrderService) sendNotifications(order *CustomerOrder, profile *Us
 }
 
 func (service *OrderService) GetNotificationServicesByProfile(profile *UserProfile) []INotificationService {
-	serviceMap := map[NotificationApproach]INotificationService{
-		NotificationApproachEmail:       service.EmailService,
-		NotificationApproachSMS:         service.SmsService,
-		NotificationApproachLineMessage: service.LineService,
+	serviceMap := map[NotificationType]INotificationService{
+		NotificationTypeEmail:       service.EmailService,
+		NotificationTypeSMS:         service.SmsService,
+		NotificationTypeLineMessage: service.LineService,
 	}
 
 	notifiers := []INotificationService{}
 	for _, approach := range profile.NotificationApproaches {
-		if notifier, ok := serviceMap[approach]; ok {
+		if notifier, ok := serviceMap[approach.Name]; ok {
 			notifiers = append(notifiers, notifier)
 		}
 	}
