@@ -13,13 +13,13 @@ func (service EmailService) Name() string {
 	return "EmailService"
 }
 
-func (service EmailService) SendOrderWaitingForApprovalMessage(order *CustomerOrder, profile *UserProfile) error {
+func (service EmailService) SendOrderWaitingForApprovalMessage(order *Order, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 
 }
 
-func (service EmailService) SendOrderApprovedMessage(order *CustomerOrder, profile *UserProfile) error {
+func (service EmailService) SendOrderApprovedMessage(order *Order, profile *UserProfile) error {
 	//TODO implement me
 	panic("implement me")
 }

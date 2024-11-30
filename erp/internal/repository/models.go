@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"encoding/json"
 	. "go-security/security/repository"
 	"time"
 )
@@ -76,12 +75,12 @@ func (profile *UserProfile) AllNotificationTypes() []NotificationType {
 	return types
 }
 
-type CustomerOrder struct {
-	UserID     uint       `gorm:"not null" json:"user_id"` // Foreign key linking to User.ID
-	OrderState OrderState `gorm:"type:varchar(50); not null" json:"order_state"`
-	OrderDate  time.Time  `gorm:"type:date"`
-	User       User       `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"` // Relationship to User
-	Products   []Product  `gorm:"many2many:order_products;" json:"products"`
+type Order struct {
+	UserID     uint        `gorm:"not null" json:"user_id"` // Foreign key linking to User.ID
+	OrderState OrderState  `gorm:"type:varchar(50); not null" json:"order_state"`
+	OrderDate  time.Time   `gorm:"type:date"`
+	User       User        `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"` // Relationship to User
+	OrderItems []OrderItem `gorm:"foreignKey:OrderID" json:"order_items"`                                                   // Relationship to OrderItem
 
 	ID        uint       `gorm:"primaryKey" json:"id"` // Auto-increment primary key
 	CreatedAt time.Time  `json:"created_at"`
@@ -89,35 +88,13 @@ type CustomerOrder struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
-func (order *CustomerOrder) AddProduct(product *Product) {
-	order.Products = append(order.Products, *product)
-}
-
-func (order *CustomerOrder) RemoveProduct(product *Product) {
-	for idx, p := range order.Products {
-		if p.ID != product.ID {
-			continue
-		}
-		order.Products = append(order.Products[:idx], order.Products[idx+1:]...)
-	}
-}
-
-func (order *CustomerOrder) AsJson() (string, error) {
-	_json, err := json.Marshal(order)
-	if err != nil {
-		return "", err
-	}
-
-	var _map map[string]any
-	if err := json.Unmarshal(_json, &_map); err != nil {
-		return "", err
-	}
-
-	updatedJson, err := json.Marshal(_map)
-	if err != nil {
-		return "", err
-	}
-	return string(updatedJson), nil
+type OrderItem struct {
+	OrderID      uint    `gorm:"not null" json:"order_id"`   // Foreign key linking to Order.ID
+	ProductID    uint    `gorm:"not null" json:"product_id"` // Foreign key linking to Product.ID
+	Product      Product `gorm:"foreignKey:ProductID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"product"`
+	Quantity     uint    `gorm:"type:int;not null" json:"quantity"`
+	PricePerUnit int     `gorm:"type:int;not null" json:"price_per_unit"`
+	TotalPrice   int     `gorm:"type:int;not null" json:"total_price"`
 }
 
 type Product struct {

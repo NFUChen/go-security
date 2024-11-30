@@ -4,7 +4,8 @@ type CoreModelProvider struct{}
 
 func (provider *CoreModelProvider) ProvideModels() []any {
 	return []any{
-		&CustomerOrder{},
+		&Order{},
+		&OrderItem{},
 		&UserProfile{},
 		&OrderNotification{},
 		&Product{},

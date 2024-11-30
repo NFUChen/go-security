@@ -52,7 +52,7 @@ func (service *OrderService) AllOrderStates() []OrderState {
 	}
 }
 
-func (service *OrderService) FindOrdersByCustomerIDAndDate(ctx context.Context, customerID uint, datetime time.Time) ([]*CustomerOrder, error) {
+func (service *OrderService) FindOrdersByCustomerIDAndDate(ctx context.Context, customerID uint, datetime time.Time) ([]*Order, error) {
 	return service.OrderRepository.FindOrdersByCustomerIDAndDate(ctx, customerID, datetime)
 }
 
@@ -61,7 +61,7 @@ func (service *OrderService) SetOrderState(ctx context.Context, orderID uint, st
 }
 
 func (service *OrderService) PlaceOrder(ctx context.Context, user *User) error {
-	newOrder := &CustomerOrder{
+	newOrder := &Order{
 		UserID:     user.ID,
 		OrderState: OrderStatePending,
 		OrderDate:  time.Now(),
@@ -120,8 +120,8 @@ func (service *OrderService) CancelOrder(ctx context.Context, orderID uint) erro
 	return nil
 }
 
-func (service *OrderService) sendNotifications(order *CustomerOrder, profile *UserProfile, notificationType Notification) error {
-	dispatch := map[Notification]func(INotificationService, *CustomerOrder, *UserProfile) error{
+func (service *OrderService) sendNotifications(order *Order, profile *UserProfile, notificationType Notification) error {
+	dispatch := map[Notification]func(INotificationService, *Order, *UserProfile) error{
 		NotificationApproved:           INotificationService.SendOrderApprovedMessage,
 		NotificationWaitingForApproval: INotificationService.SendOrderWaitingForApprovalMessage,
 	}

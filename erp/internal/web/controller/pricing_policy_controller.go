@@ -45,6 +45,7 @@ func (controller *PricingPolicyController) GetAllPricingPolicies(ctx echo.Contex
 	if err != nil {
 		return err
 	}
+
 	return ctx.JSON(http.StatusOK, policies)
 }
 
