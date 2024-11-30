@@ -2,14 +2,16 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 	"go-security/erp/internal"
 	"go-security/erp/internal/repository"
 	"go-security/erp/internal/service"
+	web "go-security/erp/internal/web"
 	baseApp "go-security/security/service"
 	baseController "go-security/security/web/controller"
-	web "go-security/security/web/middleware"
+	baseWeb "go-security/security/web/middleware"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -18,16 +20,23 @@ import (
 )
 
 type ProfileController struct {
-	Router         *echo.Group
-	UserService    *baseApp.UserService
-	ProfileService *service.ProfileService
+	Router              *echo.Group
+	UserService         *baseApp.UserService
+	ProfileService      *service.ProfileService
+	NotificationService *service.NotificationApproachService
 }
 
-func NewProfileController(routerGroup *echo.Group, userService *baseApp.UserService, profileService *service.ProfileService) *ProfileController {
+func NewProfileController(
+	routerGroup *echo.Group,
+	userService *baseApp.UserService,
+	profileService *service.ProfileService,
+	notificationService *service.NotificationApproachService,
+) *ProfileController {
 	return &ProfileController{
-		UserService:    userService,
-		Router:         routerGroup,
-		ProfileService: profileService,
+		UserService:         userService,
+		Router:              routerGroup,
+		ProfileService:      profileService,
+		NotificationService: notificationService,
 	}
 
 }
@@ -37,16 +46,29 @@ func (controller *ProfileController) RegisterRoutes() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Unable to get super admin role")
 	}
-	controller.Router.GET("/private/profile-by-id", web.RoleRequired(superAdmin, controller.GetProfileByUserID))
+	controller.Router.GET("/private/profile-by-id", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
 	controller.Router.GET("/private/personal-profile", controller.GetProfile)
 	controller.Router.POST("/private/profile", controller.UpsertProfile)
 	controller.Router.GET("private/profile", controller.GetAllProfiles)
-	controller.Router.GET("/private/is_complete_profile", controller.IsCompleteProfile)
+	controller.Router.GET("/private/is_self_complete_profile", controller.IsSelfCompleteProfile)
+	controller.Router.GET("/private/is_complete_profile", controller.IsUserCompleteProfile)
 	controller.Router.POST("/private/self_upload_profile_picture", controller.SelfUploadProfilePicture)
-	controller.Router.POST("/private/admin_upload_profile_picture", web.RoleRequired(superAdmin, controller.AdminUploadProfilePicture))
+	controller.Router.GET("/private/profile_image", baseWeb.RoleRequired(superAdmin, controller.GetProfileImage))
+	controller.Router.POST("/private/admin_upload_profile_picture", baseWeb.RoleRequired(superAdmin, controller.AdminUploadProfilePicture))
+	controller.Router.POST("/private/create_default_profile", baseWeb.RoleRequired(superAdmin, controller.CreateDefaultProfile))
+
 }
 
-func (controller *ProfileController) IsCompleteProfile(ctx echo.Context) error {
+func (controller *ProfileController) IsUserCompleteProfile(ctx echo.Context) error {
+	userID, err := web.GetUserIdFromQueryParam(ctx)
+	if err != nil {
+		return err
+	}
+	isCompleted := controller.ProfileService.IsProfileExists(ctx.Request().Context(), userID)
+	return ctx.JSON(200, map[string]bool{"is_profile_completed": isCompleted})
+}
+
+func (controller *ProfileController) IsSelfCompleteProfile(ctx echo.Context) error {
 	user, _ := baseController.ExtractUserClaims(ctx)
 	isCompleted := controller.ProfileService.IsProfileExists(ctx.Request().Context(), user.ID)
 
@@ -105,6 +127,11 @@ func (controller *ProfileController) MultiPartFileToOsFile(src *multipart.FileHe
 	if _, err := io.Copy(targetFile, sourceFile); err != nil {
 		return nil, err
 	}
+	// after copying the file, we need to reset the file pointer to the beginning of the file
+	if _, err := targetFile.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to reset file pointer: %w", err)
+	}
+
 	return targetFile, nil
 
 }
@@ -150,19 +177,66 @@ func (controller *ProfileController) AdminUploadProfilePicture(ctx echo.Context)
 
 func (controller *ProfileController) GetProfileByUserID(ctx echo.Context) error {
 
-	stringUserID := ctx.QueryParam("user_id")
-	if stringUserID == "" {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
-	}
-
-	userID, err := strconv.Atoi(stringUserID)
+	userID, err := web.GetUserIdFromQueryParam(ctx)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "user_id must be a number"})
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	profile, err := controller.ProfileService.FindProfileByUserId(ctx.Request().Context(), uint(userID))
+	profile, err := controller.ProfileService.FindProfileByUserId(ctx.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
 	return ctx.JSON(http.StatusOK, profile)
+}
+
+func (controller *ProfileController) EnableNotification(ctx echo.Context) error {
+	userID, err := web.GetUserIdFromQueryParam(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = controller.NotificationService.EnableUserNotificationForUser(ctx.Request().Context(), userID)
+	if err != nil {
+		return err
+	}
+	return ctx.NoContent(http.StatusOK)
+}
+
+func (controller *ProfileController) IsNotificationEnabled(ctx echo.Context) error {
+	userID, err := web.GetUserIdFromQueryParam(ctx)
+	if err != nil {
+		return err
+	}
+
+	isEnabled := controller.NotificationService.IsUserNotificationEnabled(ctx.Request().Context(), userID)
+	return ctx.JSON(http.StatusOK, map[string]bool{"is_enabled": isEnabled})
+}
+
+func (controller *ProfileController) CreateDefaultProfile(ctx echo.Context) error {
+	var request struct {
+		UserID uint `json:"user_id"`
+	}
+
+	if err := ctx.Bind(&request); err != nil {
+		return err
+	}
+	profile, err := controller.ProfileService.CreateDefaultProfile(ctx.Request().Context(), request.UserID)
+	if err != nil {
+		return err
+	}
+	return ctx.JSON(http.StatusOK, profile)
+}
+
+func (controller *ProfileController) GetProfileImage(ctx echo.Context) error {
+	userID, err := web.GetUserIdFromQueryParam(ctx)
+	if err != nil {
+		return err
+	}
+	url, err := controller.ProfileService.GetProfileImage(ctx.Request().Context(), userID)
+
+	if err != nil {
+		return ctx.JSON(http.StatusOK, map[string]string{"url": ""})
+	}
+	return ctx.JSON(http.StatusOK, map[string]*service.URL{"url": url})
+
 }

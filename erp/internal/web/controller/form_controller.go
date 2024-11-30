@@ -3,34 +3,42 @@ package controller
 import (
 	"context"
 	"github.com/labstack/echo/v4"
+	service "go-security/erp/internal/service"
 	"go-security/erp/internal/service/view"
-	"go-security/security/service"
-	web "go-security/security/web/middleware"
+	web "go-security/erp/internal/web"
+	baseApp "go-security/security/service"
+	baseWeb "go-security/security/web/middleware"
 	"net/http"
-	"strconv"
 )
 
-type FormController struct {
-	UserService *service.UserService
-	Router      *echo.Group
-	FormService *view.FormService
+type ProfileMetaForm struct {
+	Form *view.Form     `json:"form"`
+	Meta map[string]any `json:"meta"`
 }
 
-func NewFormController(routerGroup *echo.Group, formService *view.FormService, userService *service.UserService) *FormController {
+type FormController struct {
+	UserService         *baseApp.UserService
+	NotificationService *service.NotificationApproachService
+	Router              *echo.Group
+	FormService         *view.FormService
+}
+
+func NewFormController(routerGroup *echo.Group, formService *view.FormService, userService *baseApp.UserService, notificationService *service.NotificationApproachService) *FormController {
 	return &FormController{
-		UserService: userService,
-		FormService: formService,
-		Router:      routerGroup,
+		UserService:         userService,
+		FormService:         formService,
+		Router:              routerGroup,
+		NotificationService: notificationService,
 	}
 }
 
 func (controller *FormController) RegisterRoutes() {
-	superAdmin, err := controller.UserService.GetRoleByName(context.TODO(), service.RoleSuperAdmin)
+	superAdmin, err := controller.UserService.GetRoleByName(context.TODO(), baseApp.RoleSuperAdmin)
 	if err != nil {
 		panic(err)
 	}
 	controller.Router.GET("/private/form/profile_form_template", controller.GetProfileFormTemplate)
-	controller.Router.GET("/private/form/profile", web.RoleRequired(superAdmin, controller.GetProfileFormByUserID))
+	controller.Router.GET("/private/form/profile", baseWeb.RoleRequired(superAdmin, controller.GetProfileFormByUserID))
 }
 
 func (controller *FormController) GetProfileFormTemplate(ctx echo.Context) error {
@@ -39,19 +47,16 @@ func (controller *FormController) GetProfileFormTemplate(ctx echo.Context) error
 }
 
 func (controller *FormController) GetProfileFormByUserID(ctx echo.Context) error {
-	stringUserID := ctx.QueryParam("user_id")
-	if stringUserID == "" {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
-	}
 
-	userID, err := strconv.Atoi(stringUserID)
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "user_id must be a number"})
-	}
-
-	form, err := controller.FormService.GetUserProfileForm(ctx.Request().Context(), uint(userID))
+	userID, err := web.GetUserIdFromQueryParam(ctx)
 	if err != nil {
 		return err
 	}
+
+	form, err := controller.FormService.GetUserProfileForm(ctx.Request().Context(), userID)
+	if err != nil {
+		return err
+	}
+
 	return ctx.JSON(http.StatusOK, form)
 }

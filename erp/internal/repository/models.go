@@ -36,14 +36,13 @@ type OrderNotification struct {
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
-// TODO: NotificatonApproachService for creating all notification approaches for a user
 type NotificationApproach struct {
 	ID     uint `gorm:"primaryKey" json:"id"`
 	UserID uint `gorm:"not null" json:"user_id"` // Foreign key linking to User.ID
 	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
 
 	Name    NotificationType `gorm:"type:varchar(50);not null" json:"approach"`
-	Enabled bool             `gorm:"default:true" json:"enabled"`
+	Enabled bool             `gorm:"default:false" json:"enabled"`
 }
 
 type UserProfile struct {

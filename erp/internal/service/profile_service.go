@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/rs/zerolog/log"
 	"go-security/erp/internal"
@@ -19,29 +20,34 @@ import (
 )
 
 type ProfileService struct {
-	Engine               *gorm.DB
-	PricingPolicyService *PricingPolicyService
-	UserService          *UserService
-	ProfileRepository    IProfileRepository
-	FileUploadService    IFileUploadService
+	Engine                      *gorm.DB
+	PricingPolicyService        *PricingPolicyService
+	UserService                 *UserService
+	NotificationApproachService *NotificationApproachService
+	ProfileRepository           IProfileRepository
+	FileUploadService           IFileUploadService
+}
+
+func NewProfileService(
+	Engine *gorm.DB,
+	userService *UserService,
+	profileRepository IProfileRepository,
+	fileUploadService IFileUploadService,
+	notificationApproachService *NotificationApproachService,
+) *ProfileService {
+	return &ProfileService{
+		Engine:                      Engine,
+		UserService:                 userService,
+		ProfileRepository:           profileRepository,
+		FileUploadService:           fileUploadService,
+		NotificationApproachService: notificationApproachService,
+	}
 }
 
 type URL string
 
-func NewProfileService(Engine *gorm.DB, profileRepository IProfileRepository, fileUploadService IFileUploadService) *ProfileService {
-	return &ProfileService{
-		Engine:            Engine,
-		ProfileRepository: profileRepository,
-		FileUploadService: fileUploadService,
-	}
-}
-
 func (service *ProfileService) InjectPricingPolicyService(pricingPolicyService *PricingPolicyService) {
 	service.PricingPolicyService = pricingPolicyService
-}
-
-func (service *ProfileService) GetAllNotificationTypes() []NotificationType {
-	return []NotificationType{NotificationTypeEmail, NotificationTypeSMS, NotificationTypeLineMessage}
 }
 
 func (service *ProfileService) GetAllProfiles(ctx context.Context) ([]*UserProfile, error) {
@@ -76,6 +82,11 @@ func (service *ProfileService) CreateDefaultProfile(ctx context.Context, userID 
 	}
 	err = service.ProfileRepository.AddProfile(ctx, &profile)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := service.NotificationApproachService.EnableUserNotificationForUser(ctx, userID); err != nil {
+		log.Error().Err(err).Msg("Failed to enable notification for user")
 		return nil, err
 	}
 	return &profile, nil
@@ -145,16 +156,18 @@ func (service *ProfileService) UpsertProfile(
 }
 
 func (service *ProfileService) validateProfile(profile *UserProfile, user *User) error {
+	availableTypes := service.NotificationApproachService.GetAllNotificationTypes()
+
 	notificationTypes := []NotificationType{}
-	for _, approach := range service.GetAllNotificationTypes() {
-		notificationTypes = append(notificationTypes, approach)
+	for _, notificationType := range availableTypes {
+		notificationTypes = append(notificationTypes, notificationType)
 	}
 
-	approachSets := SetFromSlice(notificationTypes)
-	if approachSets.Contains(NotificationTypeEmail) && !user.IsVerified {
+	notificationTypeSet := SetFromSlice(notificationTypes)
+	if notificationTypeSet.Contains(NotificationTypeEmail) && !user.IsVerified {
 		return internal.UserNotVerified
 	}
-	if approachSets.Contains(NotificationTypeSMS) {
+	if notificationTypeSet.Contains(NotificationTypeSMS) {
 		if len(profile.PhoneNumber) == 0 {
 			return internal.ProfilePhoneNumberRequired
 		}
@@ -162,7 +175,7 @@ func (service *ProfileService) validateProfile(profile *UserProfile, user *User)
 			return internal.ProfilePhoneNumberNotVerified
 		}
 	}
-	if approachSets.Contains(NotificationTypeLineMessage) && user.Platform.Name != string(PlatformLine) {
+	if notificationTypeSet.Contains(NotificationTypeLineMessage) && user.Platform.Name != string(PlatformLine) {
 		return internal.UserPlatformNotLinePlatform
 	}
 
@@ -185,7 +198,6 @@ func (service *ProfileService) isImageValid(file *os.File) bool {
 		".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff",
 	}
 	return slices.Contains(validTypes, ext)
-
 }
 
 func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, userID uint, file *os.File) (*URL, *minio.UploadInfo, error) {
@@ -194,30 +206,27 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 	}
 
 	profile, err := service.FindProfileByUserId(ctx, userID)
-	if err != nil && profile == nil {
-		log.Info().Msg("Profile not found, creating new profile")
-		newProfile, err := service.CreateDefaultProfile(ctx, userID)
-		if err != nil {
-			return nil, nil, err
-		}
-		profile = newProfile
+	if err != nil {
+		return nil, nil, err
 	}
 	if profile == nil {
 		return nil, nil, internal.ProfileNotCreated
 	}
 
-	if len(profile.ProfilePictureObjectName) == 0 {
+	if len(profile.ProfilePictureObjectName) != 0 {
+		log.Info().Msgf("Deleting old profile image %s", profile.ProfilePictureObjectName)
 		if err := service.FileUploadService.DeleteFile(ctx, profile.ProfilePictureObjectName); err != nil {
 			log.Warn().Err(err).Msg("Failed to delete old profile image")
 		}
 	}
 
-	uploadInfo, err := service.FileUploadService.UploadFile(ctx, file)
+	objectName := uuid.New().String()
+
+	uploadInfo, err := service.FileUploadService.UploadFile(ctx, objectName, file)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	profile.ProfilePictureObjectName = uploadInfo.Key
+	profile.ProfilePictureObjectName = objectName
 	if err := service.UpdateProfile(ctx, profile, map[string]any{"profile_picture_object_name": uploadInfo.Key}); err != nil {
 		return nil, nil, err
 	}
@@ -228,4 +237,17 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 	}
 	url := URL(stringUrl)
 	return &url, uploadInfo, nil
+}
+
+func (service *ProfileService) GetProfileImage(ctx context.Context, userID uint) (*URL, error) {
+	profile, err := service.FindProfileByUserId(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	url, err := service.FileUploadService.GetFileExpiresIn(ctx, profile.ProfilePictureObjectName, 30*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	return (*URL)(&url), nil
+
 }

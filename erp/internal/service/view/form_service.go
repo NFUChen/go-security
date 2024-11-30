@@ -4,18 +4,26 @@ import (
 	"context"
 	. "go-security/erp/internal/repository"
 	"go-security/erp/internal/service"
-	"go-security/security"
 	baseApp "go-security/security/service"
 	"slices"
 )
 
 type FormService struct {
-	UserService    *baseApp.UserService
-	ProfileService *service.ProfileService
+	UserService                 *baseApp.UserService
+	ProfileService              *service.ProfileService
+	NotificationApproachService *service.NotificationApproachService
 }
 
-func NewFormService(profileService *service.ProfileService, userService *baseApp.UserService) *FormService {
-	return &FormService{ProfileService: profileService, UserService: userService}
+func NewFormService(
+	profileService *service.ProfileService,
+	userService *baseApp.UserService,
+	notificationApproachService *service.NotificationApproachService,
+) *FormService {
+	return &FormService{
+		ProfileService:              profileService,
+		UserService:                 userService,
+		NotificationApproachService: notificationApproachService,
+	}
 }
 
 type Form struct {
@@ -64,10 +72,13 @@ type FormField struct {
 	Required bool           `json:"required"`
 	Options  []*FieldOption `json:"options,omitempty"`
 	Value    any            `json:"value,omitempty"`
+
+	Method string `json:"method"`
+	URL    string `json:"url"`
 }
 
 func (service *FormService) GetUserProfileFormTemplate() *Form {
-	approaches := service.ProfileService.GetAllNotificationTypes()
+	approaches := service.NotificationApproachService.GetAllNotificationTypes()
 	options := []*FieldOption{}
 	for _, approach := range approaches {
 		option := FieldOption{Label: string(approach)}
@@ -129,23 +140,25 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 		return nil, err
 	}
 	profile, _ := service.ProfileService.FindProfileByUserId(ctx, userID)
+	notificationEnabledMapLookup := make(map[NotificationType]bool)
 
 	var phoneNumber string
 	var address string
 	var profilePictureURL string
-	var notificationTypes []NotificationType
 	if profile != nil {
 		phoneNumber = profile.PhoneNumber
 		address = profile.Address
-		notificationTypes = profile.AllNotificationTypes()
 		if len(profile.ProfilePictureObjectName) == 0 {
 			profilePictureURL = profile.ProfilePictureObjectName
 		}
+		for _, approach := range profile.NotificationApproaches {
+			notificationEnabledMapLookup[approach.Name] = approach.Enabled
+		}
+
 	}
 
-	notificationTypesSet := security.SetFromSlice[NotificationType](notificationTypes)
 	checkOptions := []*FieldOption{}
-	for _, currentType := range service.ProfileService.GetAllNotificationTypes() {
+	for _, currentType := range service.NotificationApproachService.GetAllNotificationTypes() {
 		isDisabled := true
 		disabledMessage := ""
 		switch currentType {
@@ -168,14 +181,15 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 			}
 			disabledMessage = "使用者登入平台不是Line"
 		}
-
-		isChecked := notificationTypesSet.Contains(currentType)
+		enabled, ok := notificationEnabledMapLookup[currentType]
+		isChecked := ok && enabled
 		checkOption := FieldOption{
 			Label:           string(currentType),
 			IsChecked:       isChecked,
 			IsDisabled:      isDisabled,
 			DisabledMessage: disabledMessage,
 		}
+
 		checkOptions = append(checkOptions, &checkOption)
 	}
 
@@ -188,6 +202,7 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 	}
 
 	form := service.GetUserProfileFormTemplate()
+	// TODO: also need to populate notification options value once we have notification approach service setup
 	for idx := range form.Fields {
 		formField := form.Fields[idx]
 		value, ok := populatedValues[formField.Key]
@@ -202,6 +217,7 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 			formField.Value = value
 		}
 	}
+
 	return form, nil
 }
 

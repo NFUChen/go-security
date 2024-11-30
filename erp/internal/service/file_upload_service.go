@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/rs/zerolog/log"
 	"os"
@@ -23,7 +22,7 @@ type MinioConfig struct {
 }
 
 type IFileUploadService interface {
-	UploadFile(ctx context.Context, file *os.File) (*minio.UploadInfo, error)
+	UploadFile(ctx context.Context, objectName string, file *os.File) (*minio.UploadInfo, error)
 	DeleteFile(ctx context.Context, objectName string) error
 	GetFileExpiresIn(ctx context.Context, objectName string, expiresIn time.Duration) (string, error)
 }
@@ -61,8 +60,7 @@ func (service *FileUploadService) DeleteFile(ctx context.Context, objectName str
 	return nil
 }
 
-func (service *FileUploadService) UploadFile(ctx context.Context, file *os.File) (*minio.UploadInfo, error) {
-	objectName := uuid.New().String()
+func (service *FileUploadService) UploadFile(ctx context.Context, objectName string, file *os.File) (*minio.UploadInfo, error) {
 	ReadUtilROL := int64(-1)
 	uploadInfo, err := service.Client.PutObject(ctx, service.BucketName, objectName, file, ReadUtilROL, minio.PutObjectOptions{})
 	if err != nil {

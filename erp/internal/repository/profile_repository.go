@@ -6,7 +6,7 @@ import (
 )
 
 type IProfileRepository interface {
-	FindProfileByUserID(ctx context.Context, customerId uint) (*UserProfile, error)
+	FindProfileByUserID(ctx context.Context, userID uint) (*UserProfile, error)
 	FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error)
 	AddProfile(ctx context.Context, profile *UserProfile) error
 	UpdateProfile(ctx context.Context, profile *UserProfile, values any) error
@@ -61,7 +61,7 @@ func (repo ProfileRepository) FindProfileByID(ctx context.Context, ID uint) (*Us
 
 func (repo ProfileRepository) FindProfileByUserID(ctx context.Context, ID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.createPreloadQuery(ctx).First(&profile, ID)
+	tx := repo.createPreloadQuery(ctx).Where("user_id = ?", ID).First(&profile)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
