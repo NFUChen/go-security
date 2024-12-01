@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/rs/zerolog/log"
 	. "go-security/erp/internal/repository"
+	"gorm.io/gorm"
 )
 
 type NotificationApproachService struct {
@@ -61,6 +62,14 @@ func (service *NotificationApproachService) IsUserNotificationEnabled(ctx contex
 		return false
 	}
 	return numberOfApproaches == numberOfAvailableApproaches
+}
+
+func (service *NotificationApproachService) TransactionUpdateNotificationApproaches(tx *gorm.DB, approaches []NotificationApproach) error {
+	ptrApproaches := []*NotificationApproach{}
+	for _, approach := range approaches {
+		ptrApproaches = append(ptrApproaches, &approach)
+	}
+	return service.NotificationApproachRepository.TransactionalUpdateNotificationApproaches(tx, ptrApproaches)
 }
 
 func (service *NotificationApproachService) UpdateNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error {

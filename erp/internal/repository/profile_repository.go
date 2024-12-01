@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"gorm.io/gorm"
 )
 
@@ -9,10 +11,10 @@ type IProfileRepository interface {
 	FindProfileByUserID(ctx context.Context, userID uint) (*UserProfile, error)
 	FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error)
 	AddProfile(ctx context.Context, profile *UserProfile) error
-	UpdateProfile(ctx context.Context, profile *UserProfile, values any) error
+	UpdateProfile(ctx context.Context, userID uint, withProfile *UserProfile) error
 	FindAllProfiles(ctx context.Context) ([]*UserProfile, error)
 
-	TransactionalUpdateProfile(tx *gorm.DB, profile *UserProfile, values any) error
+	TransactionalUpdateProfile(tx *gorm.DB, userID uint, profile *UserProfile) error
 	TransactionalAddProfile(tx *gorm.DB, profile *UserProfile) error
 }
 
@@ -20,8 +22,20 @@ type ProfileRepository struct {
 	Engine *gorm.DB
 }
 
-func (repo *ProfileRepository) TransactionalUpdateProfile(session *gorm.DB, profile *UserProfile, values any) error {
-	return session.Model(&profile).Updates(values).Error
+func (repo *ProfileRepository) TransactionalUpdateProfile(session *gorm.DB, userID uint, updatedProfile *UserProfile) error {
+	// Find the existing profile first
+	var existingProfile UserProfile
+	tx := session.Where("user_id = ?", userID).First(&existingProfile)
+	if tx.Error != nil {
+		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("profile with user ID %d not found", userID)
+		}
+		return tx.Error
+	}
+
+	// Update only the fields you need
+	tx = session.Model(&existingProfile).Updates(updatedProfile)
+	return tx.Error
 }
 
 func (repo *ProfileRepository) TransactionalAddProfile(tx *gorm.DB, profile *UserProfile) error {
@@ -50,9 +64,9 @@ func (repo *ProfileRepository) FindAllProfiles(ctx context.Context) ([]*UserProf
 	return profiles, nil
 }
 
-func (repo ProfileRepository) FindProfileByID(ctx context.Context, ID uint) (*UserProfile, error) {
+func (repo ProfileRepository) FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.createPreloadQuery(ctx).Where("id = ?", ID).First(&profile)
+	tx := repo.createPreloadQuery(ctx).Where("id = ?", userID).First(&profile)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
@@ -72,12 +86,27 @@ func (repo ProfileRepository) AddProfile(ctx context.Context, profile *UserProfi
 	return repo.Engine.WithContext(ctx).Create(profile).Error
 }
 
-func (repo ProfileRepository) UpdateProfile(ctx context.Context, profile *UserProfile, values any) error {
-	tx := repo.Engine.WithContext(ctx).Model(&profile).Updates(values)
+func (repo ProfileRepository) UpdateProfile(ctx context.Context, userID uint, withProfile *UserProfile) error {
+	var profile UserProfile
+
+	// Find the profile with preloading
+	tx := repo.createPreloadQuery(ctx).Where("user_id = ?", userID).First(&profile)
 	if tx.Error != nil {
+		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("profile with user ID %d not found", userID)
+		}
 		return tx.Error
 	}
-	return nil
+
+	// Perform withProfile in a transaction
+	err := repo.Engine.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&profile).Updates(withProfile).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return err
 }
 
 func NewProfileRepository(engine *gorm.DB) *ProfileRepository {

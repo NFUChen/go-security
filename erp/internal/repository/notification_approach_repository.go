@@ -8,6 +8,7 @@ import (
 
 type INotificationApproachRepository interface {
 	UpdateNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error
+	TransactionalUpdateNotificationApproaches(tx *gorm.DB, approaches []*NotificationApproach) error
 	GetNumberOfApproachesByUserID(ctx context.Context, userID uint) (int, error)
 	SaveNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error
 	ResetNotificationApproaches(ctx context.Context, userID uint, resetWithApproaches []*NotificationApproach) error
@@ -15,6 +16,21 @@ type INotificationApproachRepository interface {
 
 type NotificationApproachRepository struct {
 	Engine *gorm.DB
+}
+
+func (repo NotificationApproachRepository) TransactionalUpdateNotificationApproaches(tx *gorm.DB, approaches []*NotificationApproach) error {
+	for _, approach := range approaches {
+		log.Info().Msgf("Updating notification approach: %v", approach)
+		// Perform upsert: update existing or insert new if it doesn't exist
+		if err := tx.Model(&NotificationApproach{}).
+			Where("user_id = ? AND name = ?", approach.UserID, approach.Name).
+			Updates(approach).
+			Error; err != nil {
+			log.Error().Err(err).Msg("Failed to update notification approach")
+			return err
+		}
+	}
+	return nil
 }
 
 func (repo NotificationApproachRepository) ResetNotificationApproaches(ctx context.Context, userID uint, resetWithApproaches []*NotificationApproach) error {

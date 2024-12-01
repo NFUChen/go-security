@@ -72,9 +72,6 @@ type FormField struct {
 	Required bool           `json:"required"`
 	Options  []*FieldOption `json:"options,omitempty"`
 	Value    any            `json:"value,omitempty"`
-
-	Method string `json:"method"`
-	URL    string `json:"url"`
 }
 
 func (service *FormService) GetUserProfileFormTemplate() *Form {
@@ -145,9 +142,11 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 	var phoneNumber string
 	var address string
 	var profilePictureURL string
+	var userDescription string
 	if profile != nil {
 		phoneNumber = profile.PhoneNumber
 		address = profile.Address
+		userDescription = profile.UserDescription
 		if len(profile.ProfilePictureObjectName) == 0 {
 			profilePictureURL = profile.ProfilePictureObjectName
 		}
@@ -199,6 +198,7 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 		"address":                 address,
 		"notification_approaches": checkOptions,
 		"profile_picture_url":     profilePictureURL,
+		"user_description":        userDescription,
 	}
 
 	form := service.GetUserProfileFormTemplate()

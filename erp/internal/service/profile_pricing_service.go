@@ -1,6 +1,9 @@
 package service
 
-import "context"
+import (
+	"context"
+	. "go-security/erp/internal/repository"
+)
 
 type ProfilePricingService struct {
 	ProfileService       *ProfileService
@@ -17,7 +20,7 @@ func (service *ProfilePricingService) ApplyPricingPolicyToProfile(ctx context.Co
 		return err
 	}
 	profile.PricingPolicy = *policy
-	err = service.ProfileService.UpdateProfile(ctx, profile, map[string]any{"pricing_policy_id": policyID})
+	_, err = service.ProfileService.UpdateProfile(ctx, profile.UserID, &UserProfile{PricingPolicyID: policyID})
 	if err != nil {
 		return err // Handle update failure
 	}

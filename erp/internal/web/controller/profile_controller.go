@@ -6,8 +6,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 	"go-security/erp/internal"
-	"go-security/erp/internal/repository"
 	"go-security/erp/internal/service"
+	"go-security/erp/internal/service/view"
 	web "go-security/erp/internal/web"
 	baseApp "go-security/security/service"
 	baseController "go-security/security/web/controller"
@@ -24,6 +24,7 @@ type ProfileController struct {
 	UserService         *baseApp.UserService
 	ProfileService      *service.ProfileService
 	NotificationService *service.NotificationApproachService
+	FormAdaptor         *view.FormAdaptor
 }
 
 func NewProfileController(
@@ -31,12 +32,14 @@ func NewProfileController(
 	userService *baseApp.UserService,
 	profileService *service.ProfileService,
 	notificationService *service.NotificationApproachService,
+	formAdaptor *view.FormAdaptor,
 ) *ProfileController {
 	return &ProfileController{
 		UserService:         userService,
 		Router:              routerGroup,
 		ProfileService:      profileService,
 		NotificationService: notificationService,
+		FormAdaptor:         formAdaptor,
 	}
 
 }
@@ -48,7 +51,7 @@ func (controller *ProfileController) RegisterRoutes() {
 	}
 	controller.Router.GET("/private/profile-by-id", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
 	controller.Router.GET("/private/personal-profile", controller.GetProfile)
-	controller.Router.POST("/private/profile", controller.UpsertProfile)
+	controller.Router.PUT("/private/profile", baseWeb.RoleRequired(superAdmin, controller.UpdateProfile))
 	controller.Router.GET("private/profile", controller.GetAllProfiles)
 	controller.Router.GET("/private/is_self_complete_profile", controller.IsSelfCompleteProfile)
 	controller.Router.GET("/private/is_complete_profile", controller.IsUserCompleteProfile)
@@ -92,21 +95,22 @@ func (controller *ProfileController) GetProfile(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, profile)
 }
 
-func (controller *ProfileController) UpsertProfile(ctx echo.Context) error {
-	user, _ := baseController.ExtractUserClaims(ctx)
-	var profile repository.UserProfile
-	if err := ctx.Bind(&profile); err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+func (controller *ProfileController) UpdateProfile(ctx echo.Context) error {
+	userID, err := web.GetUserIdFromQueryParam(ctx)
+	if err != nil {
+		return err
 	}
 
-	newProfile, err := controller.ProfileService.UpsertProfile(
-		ctx.Request().Context(),
-		user.ID,
-		profile.PhoneNumber,
-		profile.UserDescription,
-		profile.Address,
-		profile.NotificationApproaches,
-	)
+	profileForm := view.Form{}
+	if err := ctx.Bind(&profileForm); err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+	profile, err := controller.FormAdaptor.FormToUserProfile(userID, &profileForm)
+	if err != nil {
+		return err
+	}
+
+	newProfile, err := controller.ProfileService.UpdateProfile(ctx.Request().Context(), userID, profile)
 	if err != nil {
 		return err
 	}

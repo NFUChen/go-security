@@ -100,70 +100,58 @@ func (service *ProfileService) FindProfileByUserId(ctx context.Context, customer
 	return profile, nil
 }
 
-func (service *ProfileService) UpsertProfile(
+func (service *ProfileService) UpdateProfileWithoutValidate(
 	ctx context.Context,
 	userID uint,
-	phoneNumber string,
-	description string,
-	address string,
-	notificationApproaches []NotificationApproach,
+	profile *UserProfile,
+) error {
+	return service.ProfileRepository.UpdateProfile(ctx, userID, profile)
+}
+
+func (service *ProfileService) UpdateProfile(
+	ctx context.Context,
+	userID uint,
+	profile *UserProfile,
 ) (*UserProfile, error) {
-	newProfile := UserProfile{
-		UserID:          userID,
-		PhoneNumber:     phoneNumber,
-		UserDescription: description,
-		Address:         address,
-	}
 	user, err := service.UserService.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, UserNotFound
 	}
-	if err := service.validateProfile(&newProfile, user); err != nil {
+
+	checkedTypes := []NotificationType{}
+	for _, approach := range profile.NotificationApproaches {
+		if !approach.Enabled {
+			continue
+		}
+		checkedTypes = append(checkedTypes, approach.Name)
+	}
+
+	if err := service.validateProfile(profile, user, checkedTypes); err != nil {
 		return nil, err
 	}
-	existingProfile, err := service.ProfileRepository.FindProfileByUserID(ctx, userID)
-	alreadyExists := err == nil && existingProfile != nil
 
-	transactionErr := service.Engine.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if alreadyExists {
-			log.Info().Msg("Profile already exists, updating profile")
-			updatedMap := map[string]any{
-				"phone_number":     phoneNumber,
-				"user_description": description,
-				"address":          address,
-			}
-			if err := service.ProfileRepository.TransactionalUpdateProfile(tx, existingProfile, updatedMap); err != nil {
-				log.Error().Err(err).Msg("Failed to update profile")
-				return err
-			}
-		} else {
-			log.Info().Msg("Profile not exists, creating new profile")
-			if err := service.ProfileRepository.TransactionalAddProfile(tx, &newProfile); err != nil {
-				log.Error().Err(err).Msg("Failed to add new profile")
-				return err
-			}
+	err = service.Engine.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := service.ProfileRepository.TransactionalUpdateProfile(tx, userID, profile); err != nil {
+			return err
 		}
-		// TODO: Implement notification approach for notification approach service, the whole point of using transaction...
+		// TODO: update notification approaches in db
+		if err := service.NotificationApproachService.TransactionUpdateNotificationApproaches(tx, profile.NotificationApproaches); err != nil {
+			return err
+		}
 
 		return nil
-	})
 
-	if transactionErr != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &newProfile, nil
+
+	return profile, nil
 
 }
 
-func (service *ProfileService) validateProfile(profile *UserProfile, user *User) error {
-	availableTypes := service.NotificationApproachService.GetAllNotificationTypes()
-
-	notificationTypes := []NotificationType{}
-	for _, notificationType := range availableTypes {
-		notificationTypes = append(notificationTypes, notificationType)
-	}
-
-	notificationTypeSet := SetFromSlice(notificationTypes)
+func (service *ProfileService) validateProfile(profile *UserProfile, user *User, checkedNotificationTypes []NotificationType) error {
+	notificationTypeSet := SetFromSlice(checkedNotificationTypes)
 	if notificationTypeSet.Contains(NotificationTypeEmail) && !user.IsVerified {
 		return internal.UserNotVerified
 	}
@@ -180,10 +168,6 @@ func (service *ProfileService) validateProfile(profile *UserProfile, user *User)
 	}
 
 	return nil
-}
-
-func (service *ProfileService) UpdateProfile(ctx context.Context, profile *UserProfile, values any) error {
-	return service.ProfileRepository.UpdateProfile(ctx, profile, values)
 }
 
 // TODO: if profile is not exists, prompt user to finish profiling...
@@ -227,7 +211,7 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, err
 	}
 	profile.ProfilePictureObjectName = objectName
-	if err := service.UpdateProfile(ctx, profile, map[string]any{"profile_picture_object_name": uploadInfo.Key}); err != nil {
+	if err := service.UpdateProfileWithoutValidate(ctx, userID, &UserProfile{ProfilePictureObjectName: uploadInfo.Key}); err != nil {
 		return nil, nil, err
 	}
 

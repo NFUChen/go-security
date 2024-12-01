@@ -108,8 +108,9 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 	}
 
 	_ = appService.NewOrderService(orderRepo, profileService, emailService, snsService, lineService)
+	formAdaptor := view.NewFormAdaptor()
 	router := baseApp.Engine.Group("/erp-api")
-	profileController := controller.NewProfileController(router, appDeps.UserService, profileService, notificationApproachService)
+	profileController := controller.NewProfileController(router, appDeps.UserService, profileService, notificationApproachService, formAdaptor)
 	lineLoginService := appService.NewLineLoginService(appDeps.AuthService, appDeps.UserService, appConfig.Line)
 	lineController := controller.NewLineController(
 		router,
