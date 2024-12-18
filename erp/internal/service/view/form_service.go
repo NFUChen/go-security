@@ -11,17 +11,20 @@ import (
 type FormService struct {
 	UserService                 *baseApp.UserService
 	ProfileService              *service.ProfileService
+	ProductService              *service.ProductService
 	NotificationApproachService *service.NotificationApproachService
 }
 
 func NewFormService(
 	profileService *service.ProfileService,
 	userService *baseApp.UserService,
+	productService *service.ProductService,
 	notificationApproachService *service.NotificationApproachService,
 ) *FormService {
 	return &FormService{
 		ProfileService:              profileService,
 		UserService:                 userService,
+		ProductService:              productService,
 		NotificationApproachService: notificationApproachService,
 	}
 }
@@ -46,6 +49,7 @@ type FieldType string
 
 const (
 	FieldTypeText     FieldType = "text"
+	FieldTypeNumber   FieldType = "number"
 	FieldTypeTextArea FieldType = "textarea"
 	FieldTypeFile     FieldType = "file"
 	FieldTypeCheckbox FieldType = "checkbox"
@@ -202,7 +206,6 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 	}
 
 	form := service.GetUserProfileFormTemplate()
-	// TODO: also need to populate notification options value once we have notification approach service setup
 	for idx := range form.Fields {
 		formField := form.Fields[idx]
 		value, ok := populatedValues[formField.Key]
@@ -221,18 +224,28 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 	return form, nil
 }
 
-func (service *FormService) GetProductFormTemplate() *Form {
+func (service *FormService) GetProductFormTemplate(ctx context.Context) (*Form, error) {
+	categories, err := service.ProfileService.GetAllCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	options := []*FieldOption{}
+	for _, category := range categories {
+		option := FieldOption{Label: category.Name}
+		options = append(options, &option)
+	}
+
 	fields := []*FormField{
+		{
+			Key:     "category_id",
+			Label:   "產品類別",
+			Type:    FieldTypeCombobox,
+			Options: options,
+		},
 		{
 			Key:      "name",
 			Label:    "產品名稱",
-			Type:     FieldTypeText,
-			ReadOnly: false,
-			Required: true,
-		},
-		{
-			Key:      "price",
-			Label:    "價格",
 			Type:     FieldTypeText,
 			ReadOnly: false,
 			Required: true,
@@ -244,9 +257,86 @@ func (service *FormService) GetProductFormTemplate() *Form {
 			ReadOnly: false,
 			Required: true,
 		},
+		{
+			Key:      "product_picture_url",
+			Label:    "產品圖片",
+			Type:     FieldTypeFile,
+			ReadOnly: false,
+			Required: false, // this can be uploaded later
+		},
 	}
 
-	return &Form{Fields: fields}
+	return &Form{Fields: fields}, nil
+}
+
+func (service *FormService) GetProductCategoryForm(ctx context.Context, categoryID uint) (*Form, error) {
+	form := service.GetProductCategoryFomTemplate()
+
+	category, err := service.ProductService.FindProductCategoryByID(ctx, categoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	populatedValues := map[string]any{
+		"name":        category.Name,
+		"description": category.Description,
+	}
+
+	for idx := range form.Fields {
+		formField := form.Fields[idx]
+		value, ok := populatedValues[formField.Key]
+		if !ok {
+			continue
+		}
+		formField.Value = value
+	}
+	return form, nil
+}
+
+func (service *FormService) GetProductForm(ctx context.Context, productID uint) (*Form, error) {
+	form, err := service.GetProductFormTemplate(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	product, err := service.ProductService.FindProductByID(ctx, productID)
+	if err != nil {
+		return nil, err
+	}
+
+	populatedValues := map[string]any{
+		"name":                product.Name,
+		"description":         product.Description,
+		"product_picture_url": product.ProfilePictureURL,
+		"category_id":         product.Category.Name,
+	}
+
+	CategoryFieldID := "category_id"
+	var categoryField *FormField
+
+	for idx := range form.Fields {
+		formField := form.Fields[idx]
+		if formField.Key == CategoryFieldID {
+			categoryField = formField
+		}
+
+		value, ok := populatedValues[formField.Key]
+		if !ok {
+			continue
+		}
+		formField.Value = value
+	}
+	if categoryField == nil {
+		return form, nil
+	}
+	for idx := range categoryField.Options {
+		option := categoryField.Options[idx]
+		if option.Label != product.Category.Name {
+			continue
+		}
+		option.IsChecked = true
+	}
+	return form, nil
 }
 
 func (service *FormService) GetUserFormTemplate() *Form {
@@ -269,6 +359,27 @@ func (service *FormService) GetUserFormTemplate() *Form {
 			Key:      "password",
 			Label:    "密碼",
 			Type:     FieldTypeText,
+			ReadOnly: false,
+			Required: true,
+		},
+	}
+
+	return &Form{Fields: fields}
+}
+
+func (service *FormService) GetProductCategoryFomTemplate() *Form {
+	fields := []*FormField{
+		{
+			Key:      "name",
+			Label:    "產品類別名稱",
+			Type:     FieldTypeText,
+			ReadOnly: false,
+			Required: true,
+		},
+		{
+			Key:      "description",
+			Label:    "產品類別描述",
+			Type:     FieldTypeTextArea,
 			ReadOnly: false,
 			Required: true,
 		},

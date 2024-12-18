@@ -44,8 +44,6 @@ func NewProfileService(
 	}
 }
 
-type URL string
-
 func (service *ProfileService) InjectPricingPolicyService(pricingPolicyService *PricingPolicyService) {
 	service.PricingPolicyService = pricingPolicyService
 }
@@ -100,22 +98,14 @@ func (service *ProfileService) FindProfileByUserId(ctx context.Context, customer
 	return profile, nil
 }
 
-func (service *ProfileService) UpdateProfileWithoutValidate(
-	ctx context.Context,
-	userID uint,
-	profile *UserProfile,
-) error {
-	return service.ProfileRepository.UpdateProfile(ctx, userID, profile)
-}
-
 func (service *ProfileService) UpdateProfile(
 	ctx context.Context,
 	userID uint,
 	profile *UserProfile,
-) (*UserProfile, error) {
+) error {
 	user, err := service.UserService.GetUserByID(ctx, userID)
 	if err != nil {
-		return nil, UserNotFound
+		return UserNotFound
 	}
 
 	checkedTypes := []NotificationType{}
@@ -127,7 +117,7 @@ func (service *ProfileService) UpdateProfile(
 	}
 
 	if err := service.validateProfile(profile, user, checkedTypes); err != nil {
-		return nil, err
+		return err
 	}
 
 	err = service.Engine.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -143,10 +133,10 @@ func (service *ProfileService) UpdateProfile(
 
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return profile, nil
+	return nil
 
 }
 
@@ -197,7 +187,7 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, internal.ProfileNotCreated
 	}
 
-	if len(profile.ProfilePictureObjectName) != 0 {
+	if profile.HasProfilePicture() {
 		log.Info().Msgf("Deleting old profile image %s", profile.ProfilePictureObjectName)
 		if err := service.FileUploadService.DeleteFile(ctx, profile.ProfilePictureObjectName); err != nil {
 			log.Warn().Err(err).Msg("Failed to delete old profile image")
@@ -211,7 +201,8 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, err
 	}
 	profile.ProfilePictureObjectName = objectName
-	if err := service.UpdateProfileWithoutValidate(ctx, userID, &UserProfile{ProfilePictureObjectName: uploadInfo.Key}); err != nil {
+
+	if err := service.UpdateProfile(ctx, userID, &UserProfile{ProfilePictureObjectName: uploadInfo.Key}); err != nil {
 		return nil, nil, err
 	}
 
@@ -234,4 +225,8 @@ func (service *ProfileService) GetProfileImage(ctx context.Context, userID uint)
 	}
 	return (*URL)(&url), nil
 
+}
+
+func (service *ProfileService) GetAllCategories(ctx context.Context) ([]*ProductCategory, error) {
+	return service.ProfileRepository.FindAllCategories(ctx)
 }

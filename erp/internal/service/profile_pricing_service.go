@@ -20,7 +20,7 @@ func (service *ProfilePricingService) ApplyPricingPolicyToProfile(ctx context.Co
 		return err
 	}
 	profile.PricingPolicy = *policy
-	_, err = service.ProfileService.UpdateProfile(ctx, profile.UserID, &UserProfile{PricingPolicyID: policyID})
+	err = service.ProfileService.UpdateProfile(ctx, profile.UserID, &UserProfile{PricingPolicyID: policyID})
 	if err != nil {
 		return err // Handle update failure
 	}

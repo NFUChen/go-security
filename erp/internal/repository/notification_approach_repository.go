@@ -22,11 +22,12 @@ func (repo NotificationApproachRepository) TransactionalUpdateNotificationApproa
 	for _, approach := range approaches {
 		log.Info().Msgf("Updating notification approach: %v", approach)
 		// Perform upsert: update existing or insert new if it doesn't exist
-		if err := tx.Model(&NotificationApproach{}).
-			Where("user_id = ? AND name = ?", approach.UserID, approach.Name).
-			Updates(approach).
-			Error; err != nil {
-			log.Error().Err(err).Msg("Failed to update notification approach")
+		existingApproach := &NotificationApproach{}
+		if err := tx.First(existingApproach, "user_id = ? AND name = ?", approach.UserID, approach.Name).Error; err != nil {
+			log.Error().Err(err).Msg("Failed to find existing notification approach")
+		}
+		if err := tx.Model(existingApproach).Update("enabled", approach.Enabled).Error; err != nil {
+			log.Error().Err(err).Msg("Failed to update notification approach status")
 			return err
 		}
 	}

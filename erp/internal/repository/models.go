@@ -66,6 +66,10 @@ type UserProfile struct {
 	ProfilePictureObjectName string `gorm:"type:text" json:"profile_picture_object_name"`
 }
 
+func (profile *UserProfile) HasProfilePicture() bool {
+	return len(profile.ProfilePictureObjectName) != 0
+}
+
 func (profile *UserProfile) AllNotificationTypes() []NotificationType {
 	var types []NotificationType
 	for _, approach := range profile.NotificationApproaches {
@@ -96,13 +100,33 @@ type OrderItem struct {
 	TotalPrice   int     `gorm:"type:int;not null" json:"total_price"`
 }
 
-type Product struct {
-	ID                       uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
-	Name                     string `gorm:"type:varchar(100); not null" json:"name"`
-	Description              string `gorm:"type:text" json:"description"`
-	ProfilePictureObjectName string `gorm:"type:text" json:"profile_picture_object_name"`
+type ProductCategory struct {
+	ID          uint      `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	Name        string    `gorm:"type:varchar(100);not null;unique" json:"name"`
+	Description string    `gorm:"type:text" json:"description"`
+	Products    []Product `gorm:"foreignKey:CategoryID" json:"products"` // One-to-Many relationship
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at"`
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at"`
+}
+
+type Product struct {
+	ID                       uint   `gorm:"primaryKey" json:"id"` // Auto-increment primary key
+	Name                     string `gorm:"type:varchar(100);not null;unique" json:"name"`
+	Description              string `gorm:"type:text" json:"description"`
+	ProfilePictureObjectName string `gorm:"type:text" json:"profile_picture_object_name"`
+
+	CategoryID uint            `json:"category_id"` // Foreign key
+	Category   ProductCategory `gorm:"foreignKey:CategoryID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;default:null" json:"category"`
+
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at"`
+
+	ProfilePictureURL string `gorm:"-" json:"profile_picture_url"`
+}
+
+func (product *Product) HasProfilePicture() bool {
+	return len(product.ProfilePictureObjectName) != 0
 }

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 	"go-security/erp/internal"
@@ -12,8 +11,6 @@ import (
 	baseApp "go-security/security/service"
 	baseController "go-security/security/web/controller"
 	baseWeb "go-security/security/web/middleware"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -49,8 +46,8 @@ func (controller *ProfileController) RegisterRoutes() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Unable to get super admin role")
 	}
-	controller.Router.GET("/private/profile-by-id", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
-	controller.Router.GET("/private/personal-profile", controller.GetProfile)
+	controller.Router.GET("/private/profile_by_id", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
+	controller.Router.GET("/private/personal_profile", controller.GetProfile)
 	controller.Router.PUT("/private/profile", baseWeb.RoleRequired(superAdmin, controller.UpdateProfile))
 	controller.Router.GET("private/profile", controller.GetAllProfiles)
 	controller.Router.GET("/private/is_self_complete_profile", controller.IsSelfCompleteProfile)
@@ -110,34 +107,11 @@ func (controller *ProfileController) UpdateProfile(ctx echo.Context) error {
 		return err
 	}
 
-	newProfile, err := controller.ProfileService.UpdateProfile(ctx.Request().Context(), userID, profile)
+	err = controller.ProfileService.UpdateProfile(ctx.Request().Context(), userID, profile)
 	if err != nil {
 		return err
 	}
-	return ctx.JSON(http.StatusCreated, newProfile)
-}
-
-func (controller *ProfileController) MultiPartFileToOsFile(src *multipart.FileHeader) (*os.File, error) {
-	targetFile, err := os.Create(src.Filename)
-	if err != nil {
-		return nil, err
-	}
-	sourceFile, err := src.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer sourceFile.Close()
-
-	if _, err := io.Copy(targetFile, sourceFile); err != nil {
-		return nil, err
-	}
-	// after copying the file, we need to reset the file pointer to the beginning of the file
-	if _, err := targetFile.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to reset file pointer: %w", err)
-	}
-
-	return targetFile, nil
-
+	return ctx.JSON(http.StatusCreated, profile)
 }
 
 func (controller *ProfileController) UploadHandler(ctx echo.Context, userID uint) error {
@@ -146,7 +120,7 @@ func (controller *ProfileController) UploadHandler(ctx echo.Context, userID uint
 		return err
 	}
 
-	osFile, err := controller.MultiPartFileToOsFile(fileFromForm)
+	osFile, err := web.MultiPartFileToOsFile(fileFromForm)
 	if err != nil {
 		return internal.UnableToConvertFile
 	}

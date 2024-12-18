@@ -16,6 +16,7 @@ type IProfileRepository interface {
 
 	TransactionalUpdateProfile(tx *gorm.DB, userID uint, profile *UserProfile) error
 	TransactionalAddProfile(tx *gorm.DB, profile *UserProfile) error
+	FindAllCategories(ctx context.Context) ([]*ProductCategory, error)
 }
 
 type ProfileRepository struct {
@@ -42,7 +43,7 @@ func (repo *ProfileRepository) TransactionalAddProfile(tx *gorm.DB, profile *Use
 	return tx.Create(profile).Error
 }
 
-func (repo *ProfileRepository) createPreloadQuery(ctx context.Context) *gorm.DB {
+func (repo *ProfileRepository) createProductPreloadQuery(ctx context.Context) *gorm.DB {
 
 	preloadsRequired := []string{
 		"NotificationApproaches", "PricingPolicy",
@@ -57,40 +58,40 @@ func (repo *ProfileRepository) createPreloadQuery(ctx context.Context) *gorm.DB 
 
 func (repo *ProfileRepository) FindAllProfiles(ctx context.Context) ([]*UserProfile, error) {
 	profiles := []*UserProfile{}
-	tx := repo.createPreloadQuery(ctx).Find(&profiles)
+	tx := repo.createProductPreloadQuery(ctx).Find(&profiles)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
 	return profiles, nil
 }
 
-func (repo ProfileRepository) FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error) {
+func (repo *ProfileRepository) FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.createPreloadQuery(ctx).Where("id = ?", userID).First(&profile)
+	tx := repo.createProductPreloadQuery(ctx).Where("id = ?", userID).First(&profile)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
 	return &profile, nil
 }
 
-func (repo ProfileRepository) FindProfileByUserID(ctx context.Context, ID uint) (*UserProfile, error) {
+func (repo *ProfileRepository) FindProfileByUserID(ctx context.Context, ID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.createPreloadQuery(ctx).Where("user_id = ?", ID).First(&profile)
+	tx := repo.createProductPreloadQuery(ctx).Where("user_id = ?", ID).First(&profile)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
 	return &profile, nil
 }
 
-func (repo ProfileRepository) AddProfile(ctx context.Context, profile *UserProfile) error {
+func (repo *ProfileRepository) AddProfile(ctx context.Context, profile *UserProfile) error {
 	return repo.Engine.WithContext(ctx).Create(profile).Error
 }
 
-func (repo ProfileRepository) UpdateProfile(ctx context.Context, userID uint, withProfile *UserProfile) error {
+func (repo *ProfileRepository) UpdateProfile(ctx context.Context, userID uint, withProfile *UserProfile) error {
 	var profile UserProfile
 
 	// Find the profile with preloading
-	tx := repo.createPreloadQuery(ctx).Where("user_id = ?", userID).First(&profile)
+	tx := repo.createProductPreloadQuery(ctx).Where("user_id = ?", userID).First(&profile)
 	if tx.Error != nil {
 		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("profile with user ID %d not found", userID)
@@ -107,6 +108,15 @@ func (repo ProfileRepository) UpdateProfile(ctx context.Context, userID uint, wi
 	})
 
 	return err
+}
+
+func (repo *ProfileRepository) FindAllCategories(ctx context.Context) ([]*ProductCategory, error) {
+	categories := []*ProductCategory{}
+	tx := repo.Engine.WithContext(ctx).Find(&categories)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return categories, nil
 }
 
 func NewProfileRepository(engine *gorm.DB) *ProfileRepository {

@@ -79,19 +79,23 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 	orderRepo := repository.NewOrderRepository(baseApp.SqlEngine)
 	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine)
 	notificationApproachRepo := repository.NewNotificationApproachRepository(baseApp.SqlEngine)
+	productRepo := repository.NewProductRepository(baseApp.SqlEngine)
 
 	snsClient := sns.NewFromConfig(awsConfig)
 	snsService := notification.NewAwsSnsService(snsClient)
 	minioClient := appService.MustNewMinIOCredentials(appConfig.Minio)
 	fileUploadService := appService.NewFileUploadService(minioClient, appConfig.Minio.DefaultBucketName)
 	notificationApproachService := appService.NewNotificationApproachService(notificationApproachRepo)
+	productService := appService.NewProductService(productRepo, fileUploadService)
+
+	tableService := view.NewTableService()
 
 	profileService := appService.NewProfileService(baseApp.SqlEngine, appDeps.UserService, profileRepo, fileUploadService, notificationApproachService)
 	log.Warn().Msgf("Please make sure to inject pricing policy service to profile service")
 
 	emailService := notification.NewEmailService(appDeps.SmtpService)
 	lineService := notification.NewLineService()
-	formService := view.NewFormService(profileService, appDeps.UserService, notificationApproachService)
+	formService := view.NewFormService(profileService, appDeps.UserService, productService, notificationApproachService)
 	pricingPolicyRepo := repository.NewPricingPolicyRepository(baseApp.SqlEngine)
 	pricingPolicyService := appService.NewPricingPolicyService(pricingPolicyRepo)
 	profilePricingService := appService.NewProfilePricingService(profileService, pricingPolicyService) // cross-domain service, for interact with profile and pricing policy
@@ -105,10 +109,11 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 		snsService,
 		fileUploadService,
 		pricingPolicyService,
+		productService,
 	}
 
 	_ = appService.NewOrderService(orderRepo, profileService, emailService, snsService, lineService)
-	formAdaptor := view.NewFormAdaptor()
+	formAdaptor := view.NewFormAdaptor(productService)
 	router := baseApp.Engine.Group("/erp-api")
 	profileController := controller.NewProfileController(router, appDeps.UserService, profileService, notificationApproachService, formAdaptor)
 	lineLoginService := appService.NewLineLoginService(appDeps.AuthService, appDeps.UserService, appConfig.Line)
@@ -123,12 +128,17 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 	formController := controller.NewFormController(router, formService, appDeps.UserService, notificationApproachService)
 
 	pricingPolicyController := controller.NewPricingPolicyController(router, appDeps.UserService, pricingPolicyService, profilePricingService)
+	productController := controller.NewProductController(router, appDeps.UserService, formAdaptor, productService)
+
+	tableViewController := controller.NewTableViewController(router, tableService, productService)
 
 	controllers := []baseController.Controller{
 		lineController,
 		profileController,
 		formController,
 		pricingPolicyController,
+		productController,
+		tableViewController,
 	}
 
 	return &ApplicationContext{
