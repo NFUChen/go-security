@@ -44,15 +44,7 @@ func (repo *ProfileRepository) TransactionalAddProfile(tx *gorm.DB, profile *Use
 }
 
 func (repo *ProfileRepository) createProductPreloadQuery(ctx context.Context) *gorm.DB {
-
-	preloadsRequired := []string{
-		"NotificationApproaches", "PricingPolicy",
-	}
-	engine := repo.Engine.WithContext(ctx)
-	for _, preload := range preloadsRequired {
-		engine = engine.Preload(preload)
-	}
-
+	engine := repo.Engine.WithContext(ctx).Preload("NotificationApproaches").Preload("PricingPolicy")
 	return engine
 }
 

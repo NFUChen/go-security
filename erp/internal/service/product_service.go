@@ -85,11 +85,13 @@ func (service *ProductService) AddProduct(
 	productName string,
 	description string,
 	categoryID uint,
+	cost uint,
 ) error {
 	product := &Product{
 		Name:        productName,
 		Description: description,
 		CategoryID:  categoryID,
+		Cost:        cost,
 	}
 	err := service.validateProduct(product)
 	if err != nil {

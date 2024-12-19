@@ -25,6 +25,7 @@ func (repo NotificationApproachRepository) TransactionalUpdateNotificationApproa
 		existingApproach := &NotificationApproach{}
 		if err := tx.First(existingApproach, "user_id = ? AND name = ?", approach.UserID, approach.Name).Error; err != nil {
 			log.Error().Err(err).Msg("Failed to find existing notification approach")
+			return err
 		}
 		if err := tx.Model(existingApproach).Update("enabled", approach.Enabled).Error; err != nil {
 			log.Error().Err(err).Msg("Failed to update notification approach status")
@@ -35,7 +36,7 @@ func (repo NotificationApproachRepository) TransactionalUpdateNotificationApproa
 }
 
 func (repo NotificationApproachRepository) ResetNotificationApproaches(ctx context.Context, userID uint, resetWithApproaches []*NotificationApproach) error {
-	return repo.Engine.WithContext(ctx).Delete(&NotificationApproach{}, "user_id = ?", userID).Error
+	return repo.Engine.WithContext(ctx).Delete(resetWithApproaches).Error
 }
 
 func (repo NotificationApproachRepository) GetNumberOfApproachesByUserID(ctx context.Context, userID uint) (int, error) {

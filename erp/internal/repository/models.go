@@ -125,6 +125,7 @@ type Product struct {
 	DeletedAt *time.Time `gorm:"index" json:"deleted_at"`
 
 	ProfilePictureURL string `gorm:"-" json:"profile_picture_url"`
+	Cost              uint   `gorm:"type:int;not null" json:"cost"`
 }
 
 func (product *Product) HasProfilePicture() bool {

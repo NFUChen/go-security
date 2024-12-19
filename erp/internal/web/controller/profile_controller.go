@@ -47,7 +47,7 @@ func (controller *ProfileController) RegisterRoutes() {
 		log.Fatal().Err(err).Msg("Unable to get super admin role")
 	}
 	controller.Router.GET("/private/profile_by_id", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
-	controller.Router.GET("/private/personal_profile", controller.GetProfile)
+	controller.Router.GET("/private/personal_profile", controller.GetProfileByUserID)
 	controller.Router.PUT("/private/profile", baseWeb.RoleRequired(superAdmin, controller.UpdateProfile))
 	controller.Router.GET("private/profile", controller.GetAllProfiles)
 	controller.Router.GET("/private/is_self_complete_profile", controller.IsSelfCompleteProfile)
@@ -81,15 +81,6 @@ func (controller *ProfileController) GetAllProfiles(ctx echo.Context) error {
 		return err
 	}
 	return ctx.JSON(http.StatusOK, profiles)
-}
-
-func (controller *ProfileController) GetProfile(ctx echo.Context) error {
-	user, _ := baseController.ExtractUserClaims(ctx)
-	profile, err := controller.ProfileService.FindProfileByUserId(ctx.Request().Context(), user.ID)
-	if err != nil {
-		return err
-	}
-	return ctx.JSON(http.StatusOK, profile)
 }
 
 func (controller *ProfileController) UpdateProfile(ctx echo.Context) error {
@@ -160,7 +151,7 @@ func (controller *ProfileController) GetProfileByUserID(ctx echo.Context) error 
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
-	profile, err := controller.ProfileService.FindProfileByUserId(ctx.Request().Context(), userID)
+	profile, err := controller.ProfileService.GetProfileByUserID(ctx.Request().Context(), userID)
 	if err != nil {
 		return err
 	}

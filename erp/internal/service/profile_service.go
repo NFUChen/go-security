@@ -53,6 +53,7 @@ func (service *ProfileService) GetAllProfiles(ctx context.Context) ([]*UserProfi
 }
 
 func (service *ProfileService) GetProfileByID(ctx context.Context, profileID uint) (*UserProfile, error) {
+	_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, profileID)
 	profile, err := service.ProfileRepository.FindProfileByID(ctx, profileID)
 	if err != nil {
 		return nil, internal.ProfileNotFound
@@ -62,6 +63,10 @@ func (service *ProfileService) GetProfileByID(ctx context.Context, profileID uin
 
 func (service *ProfileService) GetProfileByUserID(ctx context.Context, userID uint) (*UserProfile, error) {
 	profile, err := service.ProfileRepository.FindProfileByUserID(ctx, userID)
+	if err != nil && profile != nil {
+		_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, profile.ID)
+	}
+
 	if err != nil {
 		return nil, internal.ProfileNotFound
 	}
@@ -82,20 +87,11 @@ func (service *ProfileService) CreateDefaultProfile(ctx context.Context, userID 
 	if err != nil {
 		return nil, err
 	}
-
-	if err := service.NotificationApproachService.EnableUserNotificationForUser(ctx, userID); err != nil {
-		log.Error().Err(err).Msg("Failed to enable notification for user")
+	err = service.NotificationApproachService.EnableUserNotificationForUser(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
 	return &profile, nil
-}
-
-func (service *ProfileService) FindProfileByUserId(ctx context.Context, customerId uint) (*UserProfile, error) {
-	profile, err := service.ProfileRepository.FindProfileByUserID(ctx, customerId)
-	if err != nil {
-		return nil, internal.ProfileNotFound
-	}
-	return profile, nil
 }
 
 func (service *ProfileService) UpdateProfile(
@@ -179,7 +175,7 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, internal.ProfileImageNotValid
 	}
 
-	profile, err := service.FindProfileByUserId(ctx, userID)
+	profile, err := service.GetProfileByID(ctx, userID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,7 +211,7 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 }
 
 func (service *ProfileService) GetProfileImage(ctx context.Context, userID uint) (*URL, error) {
-	profile, err := service.FindProfileByUserId(ctx, userID)
+	profile, err := service.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -87,7 +87,7 @@ func (service *NotificationApproachService) handleResetApproaches(ctx context.Co
 
 func (service *NotificationApproachService) EnableUserNotificationForUser(ctx context.Context, userID uint) error {
 	if !service.ProfileService.IsProfileExists(ctx, userID) {
-		log.Warn().Msgf("User %s: Profile not exists, cannot enable notification, create a default one", userID)
+		log.Warn().Msgf("User %d: Profile not exists, cannot enable notification, create a default one", userID)
 		if _, err := service.ProfileService.CreateDefaultProfile(ctx, userID); err != nil {
 			return err
 		}
@@ -97,7 +97,7 @@ func (service *NotificationApproachService) EnableUserNotificationForUser(ctx co
 		return fmt.Errorf("failed to get number of approaches: %w", err)
 	}
 	if number == len(service.GetAllNotificationTypes()) {
-		log.Info().Msgf("User %s: Notification already enabled...", userID)
+		log.Info().Msgf("User %d: Notification already enabled...", userID)
 		return nil
 	}
 	approaches := service.createDefaultNotificationApproaches(userID)

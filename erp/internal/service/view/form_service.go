@@ -140,7 +140,7 @@ func (service *FormService) GetUserProfileForm(ctx context.Context, userID uint)
 	if err != nil {
 		return nil, err
 	}
-	profile, _ := service.ProfileService.FindProfileByUserId(ctx, userID)
+	profile, _ := service.ProfileService.GetProfileByUserID(ctx, userID)
 	notificationEnabledMapLookup := make(map[NotificationType]bool)
 
 	var phoneNumber string
@@ -251,6 +251,13 @@ func (service *FormService) GetProductFormTemplate(ctx context.Context) (*Form, 
 			Required: true,
 		},
 		{
+			Key:      "cost",
+			Label:    "成本",
+			Type:     FieldTypeNumber,
+			ReadOnly: false,
+			Required: true,
+		},
+		{
 			Key:      "description",
 			Label:    "產品描述",
 			Type:     FieldTypeTextArea,
@@ -306,6 +313,7 @@ func (service *FormService) GetProductForm(ctx context.Context, productID uint) 
 
 	populatedValues := map[string]any{
 		"name":                product.Name,
+		"cost":                product.Cost,
 		"description":         product.Description,
 		"product_picture_url": product.ProfilePictureURL,
 		"category_id":         product.Category.Name,

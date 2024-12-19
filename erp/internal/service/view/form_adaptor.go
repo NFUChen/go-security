@@ -48,7 +48,15 @@ func (service *FormAdaptor) FormToProduct(ctx context.Context, form *Form) (*Pro
 			} else {
 				return nil, fmt.Errorf("invalid type for description")
 			}
+
+		case "cost":
+			if value, ok := field.Value.(float64); ok {
+				product.Cost = uint(value)
+			} else {
+				return nil, fmt.Errorf("invalid type for cost")
+			}
 		}
+
 	}
 	return product, nil
 }

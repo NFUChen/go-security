@@ -100,7 +100,7 @@ func (controller *ProductController) AddProduct(ctx echo.Context) error {
 		return err
 	}
 
-	if err := controller.ProductService.AddProduct(ctx.Request().Context(), product.Name, product.Description, product.CategoryID); err != nil {
+	if err := controller.ProductService.AddProduct(ctx.Request().Context(), product.Name, product.Description, product.CategoryID, product.Cost); err != nil {
 		return err
 	}
 
