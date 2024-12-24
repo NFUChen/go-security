@@ -53,19 +53,24 @@ func (service *ProfileService) GetAllProfiles(ctx context.Context) ([]*UserProfi
 }
 
 func (service *ProfileService) GetProfileByID(ctx context.Context, profileID uint) (*UserProfile, error) {
-	_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, profileID)
 	profile, err := service.ProfileRepository.FindProfileByID(ctx, profileID)
 	if err != nil {
 		return nil, internal.ProfileNotFound
 	}
+
+	if !service.NotificationApproachService.IsUserNotificationEnabled(ctx, profile.UserID) {
+		_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, profile.UserID)
+	}
+
 	return profile, nil
 }
 
 func (service *ProfileService) GetProfileByUserID(ctx context.Context, userID uint) (*UserProfile, error) {
-	profile, err := service.ProfileRepository.FindProfileByUserID(ctx, userID)
-	if err != nil && profile != nil {
-		_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, profile.ID)
+	if !service.NotificationApproachService.IsUserNotificationEnabled(ctx, userID) {
+		_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, userID)
 	}
+
+	profile, err := service.ProfileRepository.FindProfileByUserID(ctx, userID)
 
 	if err != nil {
 		return nil, internal.ProfileNotFound
@@ -99,6 +104,10 @@ func (service *ProfileService) UpdateProfile(
 	userID uint,
 	profile *UserProfile,
 ) error {
+	if !service.NotificationApproachService.IsUserNotificationEnabled(ctx, userID) {
+		_ = service.NotificationApproachService.EnableUserNotificationForUser(ctx, userID)
+	}
+
 	user, err := service.UserService.GetUserByID(ctx, userID)
 	if err != nil {
 		return UserNotFound
@@ -121,7 +130,7 @@ func (service *ProfileService) UpdateProfile(
 			return err
 		}
 		// TODO: update notification approaches in db
-		if err := service.NotificationApproachService.TransactionUpdateNotificationApproaches(tx, profile.NotificationApproaches); err != nil {
+		if err := service.NotificationApproachService.UpdateNotificationApproaches(ctx, userID, profile.NotificationApproaches); err != nil {
 			return err
 		}
 
@@ -175,7 +184,7 @@ func (service *ProfileService) UploadUserProfilePicture(ctx context.Context, use
 		return nil, nil, internal.ProfileImageNotValid
 	}
 
-	profile, err := service.GetProfileByID(ctx, userID)
+	profile, err := service.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, nil, err
 	}

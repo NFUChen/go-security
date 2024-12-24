@@ -116,7 +116,6 @@ func (service *FormAdaptor) FormToUserProfile(userID uint, form *Form) (*UserPro
 			approaches := []NotificationApproach{}
 			for _, opt := range field.Options {
 				approach := NotificationApproach{
-					UserID:  userID,
 					Name:    NotificationType(opt.Label),
 					Enabled: opt.IsChecked,
 				}

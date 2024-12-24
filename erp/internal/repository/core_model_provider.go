@@ -12,7 +12,7 @@ func (provider *CoreModelProvider) ProvideModels() []any {
 		&ProductCategory{},
 		&PricingPolicy{},
 		&PolicyPrice{},
-		&NotificationApproach{},
+		//&NotificationApproach{},
 	}
 }
 

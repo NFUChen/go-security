@@ -7,7 +7,7 @@ import (
 	"go-security/erp/internal"
 	"go-security/erp/internal/service"
 	"go-security/erp/internal/service/view"
-	web "go-security/erp/internal/web"
+	"go-security/erp/internal/web"
 	baseApp "go-security/security/service"
 	baseController "go-security/security/web/controller"
 	baseWeb "go-security/security/web/middleware"
@@ -47,16 +47,15 @@ func (controller *ProfileController) RegisterRoutes() {
 		log.Fatal().Err(err).Msg("Unable to get super admin role")
 	}
 	controller.Router.GET("/private/profile_by_id", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
-	controller.Router.GET("/private/personal_profile", controller.GetProfileByUserID)
-	controller.Router.PUT("/private/profile", baseWeb.RoleRequired(superAdmin, controller.UpdateProfile))
-	controller.Router.GET("private/profile", controller.GetAllProfiles)
+	controller.Router.GET("/private/personal_profile", baseWeb.RoleRequired(superAdmin, controller.GetProfileByUserID))
+	controller.Router.PUT("/private/profile", controller.UpdateProfile)
+	controller.Router.GET("private/profile", baseWeb.RoleRequired(superAdmin, controller.GetAllProfiles))
 	controller.Router.GET("/private/is_self_complete_profile", controller.IsSelfCompleteProfile)
 	controller.Router.GET("/private/is_complete_profile", controller.IsUserCompleteProfile)
 	controller.Router.POST("/private/self_upload_profile_picture", controller.SelfUploadProfilePicture)
 	controller.Router.GET("/private/profile_image", baseWeb.RoleRequired(superAdmin, controller.GetProfileImage))
 	controller.Router.POST("/private/admin_upload_profile_picture", baseWeb.RoleRequired(superAdmin, controller.AdminUploadProfilePicture))
 	controller.Router.POST("/private/create_default_profile", baseWeb.RoleRequired(superAdmin, controller.CreateDefaultProfile))
-
 }
 
 func (controller *ProfileController) IsUserCompleteProfile(ctx echo.Context) error {

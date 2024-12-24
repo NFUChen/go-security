@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"go-security/erp/internal/repository"
 	appService "go-security/erp/internal/service"
@@ -61,6 +62,12 @@ func extractDependencies(context *ApplicationContext) *dependencies {
 func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Application, baseContext *ApplicationContext) *ApplicationContext {
 	appDeps := extractDependencies(baseContext)
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     appConfig.Redis.Address,
+		Password: appConfig.Redis.Password,
+		DB:       appConfig.Redis.DataBaseIndex,
+	})
+
 	awsConfig, err := config.LoadDefaultConfig(
 		context.TODO(),
 		config.WithRegion(appConfig.Aws.Region),
@@ -77,8 +84,8 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 	}
 
 	orderRepo := repository.NewOrderRepository(baseApp.SqlEngine)
-	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine)
-	notificationApproachRepo := repository.NewNotificationApproachRepository(baseApp.SqlEngine)
+	notificationApproachRepo := repository.NewNotificationApproachRepository(redisClient)
+	profileRepo := repository.NewProfileRepository(baseApp.SqlEngine, notificationApproachRepo)
 	productRepo := repository.NewProductRepository(baseApp.SqlEngine)
 
 	snsClient := sns.NewFromConfig(awsConfig)
@@ -102,8 +109,6 @@ func MustNewErpApplicationContext(appConfig *ErpApplicationConfig, baseApp *Appl
 
 	log.Info().Msg("Injecting pricing policy service to profile service")
 	profileService.InjectPricingPolicyService(pricingPolicyService)
-	log.Info().Msgf("Injecting profile service to notification approach service")
-	notificationApproachService.InjectProfileService(profileService)
 
 	services := []service.IService{
 		snsService,

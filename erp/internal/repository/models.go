@@ -37,11 +37,7 @@ type OrderNotification struct {
 }
 
 type NotificationApproach struct {
-	ID     uint `gorm:"primaryKey" json:"id"`
-	UserID uint `gorm:"not null" json:"user_id"` // Foreign key linking to User.ID
-	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
-
-	Name    NotificationType `gorm:"type:varchar(50);not null" json:"approach"`
+	Name    NotificationType `gorm:"type:varchar(50);not null" json:"name"`
 	Enabled bool             `gorm:"default:false" json:"enabled"`
 }
 
@@ -50,7 +46,7 @@ type UserProfile struct {
 	UserID uint `gorm:"not null; unique" json:"user_id"` // Foreign key linking to User.ID
 	User   User `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
 
-	NotificationApproaches []NotificationApproach `gorm:"foreignKey:UserID" json:"notification_approaches"`
+	NotificationApproaches []NotificationApproach `gorm:"-" json:"notification_approaches"`
 	PhoneNumber            string                 `gorm:"type:varchar(20)" json:"phone_number"` // for SMS
 	IsPhoneNumberVerified  bool                   `gorm:"default:false" json:"is_phone_number_verified"`
 

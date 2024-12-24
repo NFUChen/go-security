@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/labstack/echo/v4"
 	"go-security/erp/internal/service"
 	baseApp "go-security/security/service"
@@ -37,7 +36,23 @@ func (controller *PricingPolicyController) RegisterRoutes() {
 		panic(err)
 	}
 	controller.Router.GET("/private/pricing_policy", web.RoleRequired(superAdmin, controller.GetAllPricingPolicies))
-	fmt.Println()
+	controller.Router.POST("/private/pricing_policy", web.RoleRequired(superAdmin, controller.AddNewPricingPolicy))
+}
+
+func (controller *PricingPolicyController) AddNewPricingPolicy(ctx echo.Context) error {
+	var policy struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := ctx.Bind(&policy); err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+
+	err := controller.PricingPolicyService.CreateNewPricingPolicy(ctx.Request().Context(), policy.Name, policy.Description)
+	if err != nil {
+		return err
+	}
+	return ctx.NoContent(http.StatusOK)
 }
 
 func (controller *PricingPolicyController) GetAllPricingPolicies(ctx echo.Context) error {

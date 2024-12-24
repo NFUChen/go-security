@@ -24,4 +24,6 @@ var (
 	ProductCategoryNotFound       = errors.New("ProductCategoryNotFound")
 	CategoryAlreadyExists         = errors.New("CategoryAlreadyExists")
 	CategoryContainsProducts      = errors.New("CategoryContainsProducts")
+	PricingPolicyAlreadyExists    = errors.New("PricingPolicyAlreadyExists")
+	PricingPolicyNotFound         = errors.New("PricingPolicyNotFound")
 )

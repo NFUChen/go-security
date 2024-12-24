@@ -20,7 +20,15 @@ type IProfileRepository interface {
 }
 
 type ProfileRepository struct {
-	Engine *gorm.DB
+	Engine                         *gorm.DB
+	NotificationApproachRepository INotificationApproachRepository
+}
+
+func NewProfileRepository(engine *gorm.DB, notificationApproachRepository INotificationApproachRepository) *ProfileRepository {
+	return &ProfileRepository{
+		Engine:                         engine,
+		NotificationApproachRepository: notificationApproachRepository,
+	}
 }
 
 func (repo *ProfileRepository) TransactionalUpdateProfile(session *gorm.DB, userID uint, updatedProfile *UserProfile) error {
@@ -44,7 +52,7 @@ func (repo *ProfileRepository) TransactionalAddProfile(tx *gorm.DB, profile *Use
 }
 
 func (repo *ProfileRepository) createProductPreloadQuery(ctx context.Context) *gorm.DB {
-	engine := repo.Engine.WithContext(ctx).Preload("NotificationApproaches").Preload("PricingPolicy")
+	engine := repo.Engine.WithContext(ctx).Preload("PricingPolicy")
 	return engine
 }
 
@@ -54,24 +62,47 @@ func (repo *ProfileRepository) FindAllProfiles(ctx context.Context) ([]*UserProf
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
+
+	for _, profile := range profiles {
+		approaches, err := repo.NotificationApproachRepository.GetNotificationApproachesByUserID(ctx, profile.UserID)
+		if err != nil {
+			return nil, err
+		}
+		profile.NotificationApproaches = approaches
+	}
+
 	return profiles, nil
 }
 
-func (repo *ProfileRepository) FindProfileByID(ctx context.Context, userID uint) (*UserProfile, error) {
+func (repo *ProfileRepository) FindProfileByID(ctx context.Context, ID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.createProductPreloadQuery(ctx).Where("id = ?", userID).First(&profile)
+	tx := repo.createProductPreloadQuery(ctx).Where("id = ?", ID).First(&profile)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
+
+	approaches, err := repo.NotificationApproachRepository.GetNotificationApproachesByUserID(ctx, profile.UserID)
+	if err != nil {
+		return nil, err
+	}
+	profile.NotificationApproaches = approaches
+
 	return &profile, nil
 }
 
-func (repo *ProfileRepository) FindProfileByUserID(ctx context.Context, ID uint) (*UserProfile, error) {
+func (repo *ProfileRepository) FindProfileByUserID(ctx context.Context, userID uint) (*UserProfile, error) {
 	profile := UserProfile{}
-	tx := repo.createProductPreloadQuery(ctx).Where("user_id = ?", ID).First(&profile)
+	tx := repo.createProductPreloadQuery(ctx).Where("user_id = ?", userID).First(&profile)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
+
+	approaches, err := repo.NotificationApproachRepository.GetNotificationApproachesByUserID(ctx, profile.UserID)
+	if err != nil {
+		return nil, err
+	}
+	profile.NotificationApproaches = approaches
+
 	return &profile, nil
 }
 
@@ -109,10 +140,4 @@ func (repo *ProfileRepository) FindAllCategories(ctx context.Context) ([]*Produc
 		return nil, tx.Error
 	}
 	return categories, nil
-}
-
-func NewProfileRepository(engine *gorm.DB) *ProfileRepository {
-	return &ProfileRepository{
-		Engine: engine,
-	}
 }

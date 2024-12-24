@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/rs/zerolog/log"
+	"go-security/erp/internal"
 	. "go-security/erp/internal/repository"
 )
 
@@ -54,4 +55,26 @@ func (service *PricingPolicyService) CreateDefaultPricingPolicy(ctx context.Cont
 
 func (service *PricingPolicyService) GetAllPolicies(ctx context.Context) ([]*PricingPolicy, error) {
 	return service.PricingPolicyRepository.FindAllPolicies(ctx)
+}
+
+func (service *PricingPolicyService) CreateNewPricingPolicy(ctx context.Context, name string, description string) error {
+	policy := &PricingPolicy{
+		Name:        name,
+		Description: description,
+	}
+
+	policyFound, err := service.PricingPolicyRepository.FindPolicyByName(ctx, name)
+	if policyFound != nil && err == nil {
+		return internal.PricingPolicyAlreadyExists
+	}
+
+	return service.PricingPolicyRepository.AddPolicy(ctx, policy)
+}
+
+func (service *PricingPolicyService) AddPolicyPriceToPolicy(ctx context.Context, policyId uint, policyPrice *PolicyPrice) error {
+	policy, err := service.PricingPolicyRepository.FindPolicyByID(ctx, policyId)
+	if err != nil {
+		return internal.PricingPolicyNotFound
+	}
+	return service.PricingPolicyRepository.AddPolicyPrice(ctx, policy.ID, policyPrice)
 }

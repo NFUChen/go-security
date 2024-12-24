@@ -2,77 +2,79 @@ package repository
 
 import (
 	"context"
-	"github.com/rs/zerolog/log"
-	"gorm.io/gorm"
+	"encoding/json"
+	"fmt"
+	"github.com/redis/go-redis/v9"
 )
 
 type INotificationApproachRepository interface {
-	UpdateNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error
-	TransactionalUpdateNotificationApproaches(tx *gorm.DB, approaches []*NotificationApproach) error
-	GetNumberOfApproachesByUserID(ctx context.Context, userID uint) (int, error)
-	SaveNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error
-	ResetNotificationApproaches(ctx context.Context, userID uint, resetWithApproaches []*NotificationApproach) error
+	GetNotificationApproachesByUserID(ctx context.Context, userID uint) ([]NotificationApproach, error)
+	UpdateNotificationApproaches(ctx context.Context, userID uint, approaches []NotificationApproach) error
+	GetNumberOfApproachesByUserID(ctx context.Context, userID uint) int
+	SaveNotificationApproaches(ctx context.Context, userID uint, approaches []NotificationApproach) error
 }
 
 type NotificationApproachRepository struct {
-	Engine *gorm.DB
+	Engine *redis.Client
+	Key    string
 }
 
-func (repo NotificationApproachRepository) TransactionalUpdateNotificationApproaches(tx *gorm.DB, approaches []*NotificationApproach) error {
-	for _, approach := range approaches {
-		log.Info().Msgf("Updating notification approach: %v", approach)
-		// Perform upsert: update existing or insert new if it doesn't exist
-		existingApproach := &NotificationApproach{}
-		if err := tx.First(existingApproach, "user_id = ? AND name = ?", approach.UserID, approach.Name).Error; err != nil {
-			log.Error().Err(err).Msg("Failed to find existing notification approach")
-			return err
-		}
-		if err := tx.Model(existingApproach).Update("enabled", approach.Enabled).Error; err != nil {
-			log.Error().Err(err).Msg("Failed to update notification approach status")
-			return err
-		}
-	}
-	return nil
-}
-
-func (repo NotificationApproachRepository) ResetNotificationApproaches(ctx context.Context, userID uint, resetWithApproaches []*NotificationApproach) error {
-	return repo.Engine.WithContext(ctx).Delete(resetWithApproaches).Error
-}
-
-func (repo NotificationApproachRepository) GetNumberOfApproachesByUserID(ctx context.Context, userID uint) (int, error) {
-	var count int64
-	if err := repo.Engine.WithContext(ctx).Model(&NotificationApproach{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
-		log.Error().Err(err).Msg("Failed to count notification approaches")
-		return 0, err
-	}
-	return int(count), nil
-}
-
-func (repo NotificationApproachRepository) UpdateNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error {
-	return repo.Engine.WithContext(ctx).Transaction(
-		func(tx *gorm.DB) error {
-			for _, approach := range approaches {
-				log.Info().Msgf("Updating notification approach: %v", approach)
-				if err := tx.Delete(&NotificationApproach{}, "user_id = ? AND name = ?", approach.UserID, approach.Name).Error; err != nil {
-					log.Error().Err(err).Msg("Failed to delete existing notification approach")
-					return err
-				}
-				if err := tx.Create(approach).Error; err != nil {
-					log.Error().Err(err).Msg("Failed to create new notification approach")
-					return err
-				}
-			}
-			return nil
-		})
-
-}
-
-func (repo NotificationApproachRepository) SaveNotificationApproaches(ctx context.Context, approaches []*NotificationApproach) error {
-	return repo.Engine.WithContext(ctx).Create(approaches).Error
-}
-
-func NewNotificationApproachRepository(engine *gorm.DB) *NotificationApproachRepository {
+func NewNotificationApproachRepository(engine *redis.Client) *NotificationApproachRepository {
 	return &NotificationApproachRepository{
 		Engine: engine,
+		Key:    "notification_approaches",
 	}
+}
+
+func (repo NotificationApproachRepository) createKey(userID uint) string {
+	return fmt.Sprintf("%s:%d", repo.Key, userID)
+}
+
+func (repo NotificationApproachRepository) ApproachesAsJson(approaches []NotificationApproach) ([]byte, error) {
+	value, err := json.Marshal(approaches)
+	if err != nil {
+		return []byte{}, err
+	}
+	return value, nil
+}
+
+func (repo NotificationApproachRepository) GetNotificationApproachesByUserID(ctx context.Context, userID uint) ([]NotificationApproach, error) {
+	value, err := repo.Engine.Get(ctx, repo.createKey(userID)).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	var approaches []NotificationApproach
+	err = json.Unmarshal([]byte(value), &approaches)
+	if err != nil {
+		return nil, err
+	}
+
+	return approaches, nil
+}
+
+func (repo NotificationApproachRepository) GetNumberOfApproachesByUserID(ctx context.Context, userID uint) int {
+	approaches, err := repo.GetNotificationApproachesByUserID(ctx, userID)
+	if err != nil {
+		return 0
+	}
+	return len(approaches)
+}
+
+func (repo NotificationApproachRepository) UpdateNotificationApproaches(ctx context.Context, userID uint, approaches []NotificationApproach) error {
+	value, err := repo.ApproachesAsJson(approaches)
+	if err != nil {
+		return err
+	}
+
+	return repo.Engine.Set(ctx, repo.createKey(userID), value, 0).Err()
+}
+
+func (repo NotificationApproachRepository) SaveNotificationApproaches(ctx context.Context, userID uint, approaches []NotificationApproach) error {
+	value, err := repo.ApproachesAsJson(approaches)
+	if err != nil {
+		return err
+	}
+
+	return repo.Engine.Set(ctx, repo.createKey(userID), value, 0).Err()
 }
